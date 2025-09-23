@@ -21,7 +21,7 @@ class ProductController extends Controller
             'port' => 'required|integer',
             'database' => 'required|string',
             'username' => 'required|string',
-            'password' => 'nullable',
+            'password' => 'required|string',
         ]);
 
         $user = $request->user();
@@ -50,12 +50,20 @@ class ProductController extends Controller
     {
         $conn = $this->db->connect($this->getUserConnection());
 
-        $products = $conn->table('products')
-            ->paginate(10); // adjust per-page as needed
+        try {
 
-        return inertia('Product/Index', [
-            'products' => $products,
-        ]);
+            $products = $conn->table('products')
+                ->paginate(10);
+
+            return inertia('Product/Index', [
+                'products' => $products,
+            ]);
+
+        } catch (\Exception) {
+
+            return redirect()->route('dashboard');
+
+        }
     }
 
     public function findProduct(Request $request)
@@ -94,6 +102,10 @@ class ProductController extends Controller
 
     private function getUserConnection()
     {
-        return auth()->user()->dbConnection->toArray(); // assume relation User->dbConnection
+        if (auth()->user()->dbConnection == null) {
+            return [];
+        }
+
+        return auth()->user()->dbConnection->toArray();
     }
 }

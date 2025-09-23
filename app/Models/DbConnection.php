@@ -16,7 +16,7 @@ class DbConnection extends Model
         'password',
     ];
 
-    protected $hidden = ['password']; // don’t leak in API
+    protected $hidden = []; // don’t leak in API
 
     public function user()
     {
