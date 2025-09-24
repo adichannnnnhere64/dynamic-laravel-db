@@ -1,67 +1,53 @@
 import React from "react";
 import { useForm } from "@inertiajs/react";
 import AppLayout from "@/layouts/app-layout";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 type Props = {
-  product: Record<string, any>;
   editableFields: string[];
   inputs: Record<string, string>;
   idField: string;
 };
 
-export default function ProductShow({
-  product,
-  editableFields,
-  inputs,
-  idField,
-}: Props) {
+export default function ProductCreate({ editableFields, inputs, idField }: Props) {
   const { data, setData, post, processing } = useForm(() => {
-    const initial: Record<string, any> = {
-      [idField]: product[idField], // 👈 dynamic primary key
-    };
+    const initial: Record<string, any> = {};
     editableFields.forEach((f) => {
-      initial[f] = product[f] ?? "";
+      initial[f] = "";
     });
+    initial[idField] = "";
     return initial;
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    post("/product/update");
+    post("/product/store");
   }
 
   return (
     <AppLayout>
-      <div className="w-full mx-auto py-8">
+      <div className="p-6 w-full mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Edit Product</CardTitle>
+            <CardTitle>Create Product</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Always show idField (primary key) */}
+              {/* ID Field */}
               <div>
                 <Label htmlFor={idField}>{idField}</Label>
                 <Input
                   id={idField}
                   value={data[idField]}
-                  readOnly // 👈 use readOnly instead of disabled
-                  className="bg-gray-100"
-                  placeholder={idField}
+                  onChange={(e) => setData(idField, e.target.value)}
+                  placeholder={`Enter ${idField}`}
                 />
               </div>
 
-              {/* Loop editable fields */}
+              {/* Editable Fields */}
               {editableFields.map((f) => (
                 <div key={f}>
                   <Label htmlFor={f}>{f}</Label>

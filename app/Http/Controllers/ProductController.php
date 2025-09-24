@@ -49,16 +49,16 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $conn = $this->db->connect($this->getUserConnection());
+        $table = config('products.table');
 
         try {
-            $query = $conn->table('products');
+            $query = $conn->table($table);
 
             if ($search = $request->get('search')) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('product_code', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%")
-                        ->orWhere('age', 'like', "%{$search}%")
-                        ->orWhere('country', 'like', "%{$search}%");
+                    foreach (config('products.fields') as $field) {
+                        $q->orWhere($field, 'like', "%{$search}%");
+                    }
                 });
             }
 
@@ -66,53 +66,103 @@ class ProductController extends Controller
 
             return inertia('Product/Index', [
                 'products' => $products,
+                'idField' => config('products.primary_key'),
+                'fields' => config('products.fields'),
             ]);
-
         } catch (\Exception) {
-            return redirect()->route('dashboard');
+            auth()->user()->dbConnection()->delete();
+
+            return redirect()->route('connect');
         }
     }
 
     public function findProduct(Request $request)
     {
+
+        $idField = config('products.primary_key');
         $validated = $request->validate([
-            'code' => 'required|string',
+            $idField => 'required|string',
         ]);
 
-        $conn = $this->db->connect($this->getUserConnection());
-        $product = $conn->table('products')->where('product_code', $validated['code'])->first();
+        $table = config('products.table');
+        $idField = config('products.primary_key');
+        /* dd($validated) */
 
-        return inertia('Product/Show', ['product' => $product]);
+        $conn = $this->db->connect($this->getUserConnection());
+        $product = $conn->table($table)
+            ->where($idField, $validated[$idField])
+            ->first();
+
+        return inertia('Product/Show', [
+            'product' => $product,
+            'editableFields' => config('products.editable'),
+            'inputs' => config('products.inputs'),
+            'idField' => config('products.primary_key'),
+        ]);
     }
 
     public function updateProduct(Request $request)
-    {
-        $validated = $request->validate([
-            'code' => 'required|string',
-            'name' => 'required|string',
-            'age' => 'required|integer',
-            'country' => 'required|string',
-        ]);
+{
+    $editable = config('products.editable');
+    $validations = config('products.validations');
+    $idField = config('products.primary_key');
+    $table = config('products.table');
 
-        $conn = $this->db->connect($this->getUserConnection());
+    // only validate editable fields + primary key
+    $rules = collect($editable)
+        ->mapWithKeys(fn ($field) => [$field => $validations[$field] ?? 'nullable'])
+        ->toArray();
 
-        $conn->table('products')
-            ->where('product_code', $validated['code'])
-            ->update([
-                'name' => $validated['name'],
-                'age' => $validated['age'],
-                'country' => $validated['country'],
-            ]);
+    $rules[$idField] = $validations[$idField] ?? 'required|string';
 
-        return to_route('product.index')->with('success', 'Product updated');
-    }
+    $validated = $request->validate($rules);
 
-    private function getUserConnection()
+    $conn = $this->db->connect($this->getUserConnection());
+
+    $conn->table($table)
+        ->where($idField, $validated[$idField]) // 👈 dynamic
+        ->update(collect($validated)->only($editable)->toArray());
+
+    return to_route('product.index')->with('success', 'Product updated');
+}
+
+     private function getUserConnection()
     {
         if (auth()->user()->dbConnection == null) {
             return [];
         }
 
         return auth()->user()->dbConnection->toArray();
+    }
+
+    public function create()
+    {
+        return inertia('Product/Create', [
+            'editableFields' => config('products.editable'),
+            'inputs' => config('products.inputs'),
+            'idField' => config('products.primary_key'),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $editable = config('products.editable');
+        $validations = config('products.validations');
+        $idField = config('products.primary_key');
+        $table = config('products.table');
+
+        // Build validation rules
+        $rules = collect($editable)
+            ->mapWithKeys(fn ($field) => [$field => $validations[$field] ?? 'nullable'])
+            ->toArray();
+
+        $rules[$idField] = $validations[$idField] ?? 'required|string|unique:'.$table.','.$idField;
+
+        $validated = $request->validate($rules);
+
+        $conn = $this->db->connect($this->getUserConnection());
+        $conn->table($table)->insert($validated);
+
+        return to_route('product.index')->with('success', 'Product created successfully');
     }
 }

@@ -39,8 +39,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/connect', [ProductController::class, 'connect'])->name('connect');
     Route::get('/disconnect', [ProductController::class, 'disconnect'])->name('disconnect');
 
-    Route::post('/product/search', [ProductController::class, 'findProduct'])->name('product.search');
+    Route::post('/product/search', [ProductController::class, 'findProduct'])->name('product.search.post');
     Route::post('/product/update', [ProductController::class, 'updateProduct'])->name('product.update');
+    Route::get('/product/create', [ProductController::class, 'create'])->name('product.create');
+    Route::post('/product/store', [ProductController::class, 'store'])->name('product.store');
+
 });
 
 require __DIR__.'/settings.php';

@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
-import { Input } from "@/components/ui/input"; // assuming you have this
-
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -13,14 +12,9 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-// import { Table } from "lucide-react";
 
 interface Product {
-  id: number;
-  product_code: string;
-  name: string;
-  age: number;
-  country: string;
+  [key: string]: any;
 }
 
 interface Pagination<T> {
@@ -32,9 +26,11 @@ interface Pagination<T> {
 
 interface Props {
   products: Pagination<Product>;
+  fields: string[];
+  idField: string;
 }
 
-export default function Index({ products }: Props) {
+export default function Index({ products, fields, idField }: Props) {
   const [search, setSearch] = useState("");
 
   const handleSearch = (value: string) => {
@@ -53,50 +49,70 @@ export default function Index({ products }: Props) {
     <AppLayout>
       <div className="p-6 w-full mx-auto">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-xl font-bold">Products</CardTitle>
-            <div className="mt-2">
+            <div className="flex gap-2 items-center w-full sm:w-auto">
               <Input
                 type="text"
-                placeholder="Search by code, name, age, country"
+                placeholder={`Search by ${fields.join(", ")}`}
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
+                className="flex-1"
               />
+              <Button
+                onClick={() => router.visit("/product/create")}
+                className="whitespace-nowrap"
+              >
+                + Create
+              </Button>
             </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Age</TableHead>
-                  <TableHead>Country</TableHead>
+                  {fields.map((f) => (
+                    <TableHead key={f} className="capitalize">
+                      {f.replace(/_/g, " ")}
+                    </TableHead>
+                  ))}
                   <TableHead className="text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
-                {products.data.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{p.product_code}</TableCell>
-                    <TableCell>{p.name}</TableCell>
-                    <TableCell>{p.age}</TableCell>
-                    <TableCell>{p.country}</TableCell>
-                    <TableCell className="text-center">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          router.visit(`/product/search`, {
-                            method: "post",
-                            data: { code: p.product_code },
-                          })
-                        }
-                      >
-                        Edit
-                      </Button>
+                {products.data.length > 0 ? (
+                  products.data.map((p, i) => (
+                    <TableRow key={i}>
+                      {fields.map((f) => (
+                        <TableCell key={f}>{p[f]}</TableCell>
+                      ))}
+                      <TableCell className="text-center">
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            router.visit(`/product/search`, {
+                              method: "post",
+                              data: { [idField]: p[idField] },
+                            })
+                          }
+                        >
+                          Edit
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={fields.length + 1}
+                      className="text-center text-gray-500"
+                    >
+                      No products found.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
 
