@@ -21,7 +21,7 @@ class ProductController extends Controller
             'port' => 'required|integer',
             'database' => 'required|string',
             'username' => 'required|string',
-            'password' => 'required|string',
+            'password' => 'nullable|string',
         ]);
 
         $user = $request->user();
