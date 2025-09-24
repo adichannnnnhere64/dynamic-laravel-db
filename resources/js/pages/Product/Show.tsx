@@ -42,6 +42,16 @@ export default function ProductShow({ product }: { product: Product }) {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
+                <Label htmlFor="product_code">product_code</Label>
+                <Input
+                  id="product_code"
+                  value={data.code}
+                  // onChange={(e) => setData("code", e.target.value)}
+                  placeholder="Enter product product_code"
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"

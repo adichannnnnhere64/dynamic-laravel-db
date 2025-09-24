@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
+import { Input } from "@/components/ui/input"; // assuming you have this
 
 import {
   Table,
@@ -34,12 +35,34 @@ interface Props {
 }
 
 export default function Index({ products }: Props) {
+  const [search, setSearch] = useState("");
+
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    router.get(
+      "/product",
+      { search: value },
+      {
+        preserveState: true,
+        replace: true,
+      }
+    );
+  };
+
   return (
     <AppLayout>
       <div className="p-6 w-full mx-auto">
         <Card>
           <CardHeader>
             <CardTitle className="text-xl font-bold">Products</CardTitle>
+            <div className="mt-2">
+              <Input
+                type="text"
+                placeholder="Search by code, name, age, country"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Table>

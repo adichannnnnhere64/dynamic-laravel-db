@@ -51,18 +51,25 @@ class ProductController extends Controller
         $conn = $this->db->connect($this->getUserConnection());
 
         try {
+            $query = $conn->table('products');
 
-            $products = $conn->table('products')
-                ->paginate(10);
+            if ($search = $request->get('search')) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('product_code', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%")
+                        ->orWhere('age', 'like', "%{$search}%")
+                        ->orWhere('country', 'like', "%{$search}%");
+                });
+            }
+
+            $products = $query->paginate(10)->withQueryString();
 
             return inertia('Product/Index', [
                 'products' => $products,
             ]);
 
         } catch (\Exception) {
-
             return redirect()->route('dashboard');
-
         }
     }
 
