@@ -12,6 +12,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
 
         $user = auth()->user()->load('dbConnection');
+        /* dd($user->dbConnection); */
 
         if ($user->dbConnection) {
             return redirect()->route('product.index');
@@ -35,6 +36,7 @@ Route::middleware(['auth'])->group(function () {
     /* Route::get('/product/search', fn () => Inertia::render('Product/Search'))->name('product.search.page'); */
     Route::get('/product/search', [ProductController::class, 'index'])->name('product.search');
     Route::get('/product', [ProductController::class, 'index'])->name('product.index');
+    Route::delete('/product/delete', [ProductController::class, 'deleteProduct'])->name('product.delete');
 
     Route::post('/connect', [ProductController::class, 'connect'])->name('connect');
     Route::get('/disconnect', [ProductController::class, 'disconnect'])->name('disconnect');
@@ -43,8 +45,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/product/update', [ProductController::class, 'updateProduct'])->name('product.update');
     Route::get('/product/create', [ProductController::class, 'create'])->name('product.create');
     Route::post('/product/store', [ProductController::class, 'store'])->name('product.store');
-
 });
 
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';
+require __DIR__ . '/settings.php';
+require __DIR__ . '/auth.php';

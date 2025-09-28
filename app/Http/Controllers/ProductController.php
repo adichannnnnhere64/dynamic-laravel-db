@@ -102,31 +102,31 @@ class ProductController extends Controller
     }
 
     public function updateProduct(Request $request)
-{
-    $editable = config('products.editable');
-    $validations = config('products.validations');
-    $idField = config('products.primary_key');
-    $table = config('products.table');
+    {
+        $editable = config('products.editable');
+        $validations = config('products.validations');
+        $idField = config('products.primary_key');
+        $table = config('products.table');
 
-    // only validate editable fields + primary key
-    $rules = collect($editable)
-        ->mapWithKeys(fn ($field) => [$field => $validations[$field] ?? 'nullable'])
-        ->toArray();
+        // only validate editable fields + primary key
+        $rules = collect($editable)
+            ->mapWithKeys(fn($field) => [$field => $validations[$field] ?? 'nullable'])
+            ->toArray();
 
-    $rules[$idField] = $validations[$idField] ?? 'required|string';
+        $rules[$idField] = $validations[$idField] ?? 'required|string';
 
-    $validated = $request->validate($rules);
+        $validated = $request->validate($rules);
 
-    $conn = $this->db->connect($this->getUserConnection());
+        $conn = $this->db->connect($this->getUserConnection());
 
-    $conn->table($table)
-        ->where($idField, $validated[$idField]) // 👈 dynamic
-        ->update(collect($validated)->only($editable)->toArray());
+        $conn->table($table)
+            ->where($idField, $validated[$idField]) // 👈 dynamic
+            ->update(collect($validated)->only($editable)->toArray());
 
-    return to_route('product.index')->with('success', 'Product updated');
-}
+        return to_route('product.index')->with('success', 'Product updated');
+    }
 
-     private function getUserConnection()
+    private function getUserConnection()
     {
         if (auth()->user()->dbConnection == null) {
             return [];
@@ -153,10 +153,10 @@ class ProductController extends Controller
 
         // Build validation rules
         $rules = collect($editable)
-            ->mapWithKeys(fn ($field) => [$field => $validations[$field] ?? 'nullable'])
+            ->mapWithKeys(fn($field) => [$field => $validations[$field] ?? 'nullable'])
             ->toArray();
 
-        $rules[$idField] = $validations[$idField] ?? 'required|string|unique:'.$table.','.$idField;
+        $rules[$idField] = $validations[$idField] ?? 'required|string|unique:' . $table . ',' . $idField;
 
         $validated = $request->validate($rules);
 
@@ -164,5 +164,29 @@ class ProductController extends Controller
         $conn->table($table)->insert($validated);
 
         return to_route('product.index')->with('success', 'Product created successfully');
+    }
+
+    public function deleteProduct(Request $request)
+    {
+        $idField = config('products.primary_key');
+        $table = config('products.table');
+
+        $request->validate([
+            $idField => 'required|string',
+        ]);
+
+        $conn = $this->db->connect($this->getUserConnection());
+
+        $deleted = $conn->table($table)
+            ->where($idField, $request->input($idField))
+            ->delete();
+
+        if ($deleted) {
+            return redirect()->route('product.index')
+                ->with('success', 'Product deleted successfully');
+        }
+
+        return redirect()->route('product.index')
+            ->with('error', 'Product not found or could not be deleted');
     }
 }
