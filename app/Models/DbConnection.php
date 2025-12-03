@@ -11,28 +11,29 @@ class DbConnection extends Model
 
     protected $fillable = [
         'user_id',
-        'name',                    // e.g. "Main Products", "Inventory Backup"
+        'name',
         'host',
         'port',
         'database',
         'username',
         'password',
-        'table_name',
-        'primary_key',
-        'fields',         // json array
-        'editable_fields', // json array
-        'input_types',     // json object
     ];
 
-    protected $casts = [
-        'fields' => 'array',
-        'editable_fields' => 'array',
-        'input_types' => 'array',
-    ];
+    protected $hidden = ['password'];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function tables()
+    {
+        return $this->hasMany(ConnectionTable::class)->orderBy('order')->orderBy('name');
+    }
+
+    public function activeTables()
+    {
+        return $this->tables()->where('is_active', true);
     }
 
     public function setPasswordAttribute($value)
@@ -45,7 +46,7 @@ class DbConnection extends Model
         return $value ? Crypt::decryptString($value) : null;
     }
 
-    public function getConfigAttribute()
+    public function getConnectionConfigAttribute()
     {
         return [
             'host' => $this->host,
@@ -53,11 +54,6 @@ class DbConnection extends Model
             'database' => $this->database,
             'username' => $this->username,
             'password' => $this->password,
-            'table' => $this->table_name,
-            'primary_key' => $this->primary_key,
-            'fields' => $this->fields,
-            'editable' => $this->editable_fields,
-            'inputs' => $this->input_types ?? [],
         ];
     }
 }

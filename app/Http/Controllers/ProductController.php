@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\DbConnection;
+use App\Models\ConnectionTable;
 use App\Services\DynamicDatabaseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -16,10 +18,10 @@ class ProductController extends Controller
         $this->db = $db;
     }
 
-    // 1. Show connection form (if none exist)
+    // Show connection form
     public function showConnectForm()
     {
-        $connections = auth()->user()->dbConnections()->get();
+        $connections = auth()->user()->dbConnections()->with('tables')->get();
 
         return Inertia::render('Connection/Index', [
             'connections' => $connections,
@@ -27,7 +29,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // 2. Save new or update connection
+    // Save connection (without tables)
     public function connect(Request $request)
     {
         $request->validate([
@@ -37,214 +39,446 @@ class ProductController extends Controller
             'database' => 'required|string',
             'username' => 'required|string',
             'password' => 'nullable|string',
-            'table_name' => 'required|string',
-            'primary_key' => 'required|string',
-            'fields' => 'required|array|min:1',
-            'fields.*' => 'required|string|distinct',
-            'editable_fields' => 'nullable|array',
-            'editable_fields.*' => 'string',
         ]);
 
-        auth()->user()->dbConnections()->updateOrCreate(
-            ['id' => $request->id], // if editing
-            [
-                'name' => $request->name,
-                'host' => $request->host,
-                'port' => $request->port,
-                'database' => $request->database,
-                'username' => $request->username,
-                'password' => $request->password,
-                'table_name' => $request->table_name,
-                'primary_key' => $request->primary_key,
-                'fields' => $request->fields,
-                'editable_fields' => $request->editable_fields ?? [],
-                'input_types' => $request->input_types ?? [],
-            ]
+        $connection = auth()->user()->dbConnections()->updateOrCreate(
+            ['id' => $request->id],
+            $request->only(['name', 'host', 'port', 'database', 'username', 'password'])
         );
 
-        return redirect()->route('product.index')
-            ->with('success', 'Connection saved successfully!');
+        return redirect()->route('connection.tables', $connection->id)
+            ->with('success', 'Connection saved! Now add tables.');
     }
 
-    // 3. Delete a connection
-    public function disconnect($id)
+    // Show tables for a connection
+    public function showTables($connectionId)
     {
-        auth()->user()->dbConnections()->where('id', $id)->delete();
-        return back()->with('success', 'Connection deleted');
-    }
+        $connection = auth()->user()->dbConnections()->with('tables')->findOrFail($connectionId);
 
-    // 4. Main product list — supports multiple tables
-    public function index(Request $request)
-    {
-        $connections = auth()->user()->dbConnections()->orderBy('name')->get();
-
-        if ($connections->isEmpty()) {
-            return redirect()->route('connect.form');
-        }
-
-        $activeId = $request->query('conn') ?? $connections->first()->id;
-        $active = $connections->find($activeId) ?? $connections->first();
-
-        $dbConn = $this->db->connect($active->only([
-            'host', 'port', 'database', 'username', 'password'
-        ]));
+        // Fetch actual tables from database
+        $actualTables = [];
 
         try {
-            $query = $dbConn->table($active->table_name);
+    $dbConn = $this->db->connect($connection->connection_config);
+    $tables = $dbConn->select('SHOW TABLES');
 
-            if ($search = $request->query('search')) {
-                $query->where(function ($q) use ($search, $active) {
-                    foreach ($active->fields as $field) {
-                        $q->orWhere($field, 'like', "%{$search}%");
-                    }
-                });
-            }
-
-            $products = $query->paginate(15)->withQueryString();
-
-            return Inertia::render('Product/Index', [
-                'products' => $products,
-                'connections' => $connections,
-                'activeConnection' => $active,
-                'fields' => $active->fields,
-                'idField' => $active->primary_key,
-                'editableFields' => $active->editable_fields,
-                'inputTypes' => $active->input_types ?? [],
-            ]);
-        } catch (\Exception $e) {
-            return redirect()->route('connect.form')
-                ->with('error', 'Failed to connect: ' . $e->getMessage());
-        }
+    foreach ($tables as $table) {
+        $tableName = $table->{'Tables_in_' . $connection->database};
+        $actualTables[] = $tableName;
     }
+} catch (\Exception $e) {
+    // Log the error for debugging
+    \Log::error('Database Connection Failed', [
+        'connection_id' => $connectionId,
+        'user_id' => auth()->id(),
+        'error' => $e->getMessage(),
+        'config' => $connection->connection_config // Be cautious with logging credentials
+    ]);
 
-    // 5. Show create form
-    public function create(Request $request)
-    {
-        $conn = $this->getActiveConnection($request);
-        if (!$conn) return redirect()->route('product.index');
+    // Return user-friendly error
+    return back()->withErrors([
+        'message' => 'Cannot connect to database. Please check your credentials.',
+        'details' => $e->getMessage() // Only in development
+    ]);
+}
 
-        return Inertia::render('Product/Create', [
-            'connection' => $conn,
-            'editableFields' => $conn->editable_fields,
-            'inputTypes' => $conn->input_types ?? [],
-            'idField' => $conn->primary_key,
+
+        return Inertia::render('Connection/Tables', [
+            'connection' => $connection,
+            'actualTables' => $actualTables,
         ]);
     }
 
-    public function store(Request $request)
-{
-    $conn = $this->getActiveConnection($request);
-    if (!$conn) return redirect()->route('product.index');
+    // Save/Update table configuration
 
-    $idField = $conn->primary_key;
-
-    if (!$request->has($idField)) {
-        return back()->with('error', "The {$idField} field is required.");
-    }
-
-    $dbConn = $this->db->connect($conn->only(['host','port','database','username','password']));
-
-    $data = $request->only(array_merge($conn->editable_fields, [$idField]));
-
-    $dbConn->table($conn->table_name)->insert($data);
-
-    return redirect()->route('product.index', ['conn' => $conn->id])
-        ->with('success', 'Product created!');
-}
-
-
-    // 7. Show edit form — FIXED & CLEAN
-public function findProduct(Request $request)
-{
-    $connectionId = $request->input('connection_id');
-    $idValue = $request->input('id'); // fallback if idField is 'id'
-
-    $conn = DbConnection::findOrFail($connectionId);
-    $idField = $conn->primary_key;
-
-    // Get the actual ID value using dynamic key
-    $idValue = $request->input($idField);
-
-    if (!$idValue) {
-        return back()->with('error', 'Product ID is required.');
-    }
-
-    $dbConn = $this->db->connect($conn->only(['host', 'port', 'database', 'username', 'password']));
-
-    $product = $dbConn->table($conn->table_name)
-        ->where($idField, $idValue)
-        ->first();
-
-    if (!$product) {
-        return back()->with('error', 'Product not found.');
-    }
-
-    return Inertia::render('Product/Show', [
-        'product' => (array) $product,
-        'connectionId' => $conn->id,
-        'editableFields' => $conn->editable_fields ?? [],
-        'inputTypes' => $conn->input_types ?? [],
-        'idField' => $idField,
-    ]);
-}
-
-// 8. Update product — FINAL & BULLETPROOF
-public function updateProduct(Request $request)
+    public function saveTable(Request $request, $connectionId)
 {
     $request->validate([
-        'connection_id' => 'required|exists:db_connections,id',
+        'table_name' => 'required|string',
+        'name' => 'required|string|max:255',
+        'primary_key' => 'required|string',
+        'fields' => 'required|array|min:1',
+        'fields.*' => 'required|string',
+        'editable_fields' => 'nullable|array',
+        'input_types' => 'nullable|array',
     ]);
 
-    $conn = DbConnection::findOrFail($request->connection_id);
-    $idField = $conn->primary_key;
+    $connection = DbConnection::findOrFail($connectionId);
 
-    if (!$request->has($idField)) {
-        return back()->withErrors(["{$idField}" => "The {$idField} field is required."]);
+    // Connect to dynamic MySQL
+    $dbConn = $this->db->connect($connection->connection_config);
+
+    $table = $request->table_name;
+
+    // FIXED — check table exists on the correct connection
+
+        $exists = $dbConn->select("
+    SELECT TABLE_NAME
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = ?
+      AND TABLE_NAME = ?
+", [$connection->database, $request->table_name]);
+
+
+    if (empty($exists)) {
+        return back()->with('error', "Table '$table' does not exist in database.");
     }
 
-    $dbConn = $this->db->connect($conn->only(['host', 'port', 'database', 'username', 'password']));
+    // Fetch actual columns safely
+    $columns = $dbConn->select("DESCRIBE `$table`");
+    $actualColumns = array_column($columns, 'Field');
 
-    $updateData = $request->only($conn->editable_fields ?? []);
+    // Validate requested fields
+    $invalidFields = array_diff($request->fields, $actualColumns);
+    if (!empty($invalidFields)) {
+        return back()->with('error', 'Fields not found: ' . implode(', ', $invalidFields));
+    }
 
-    $affected = $dbConn->table($conn->table_name)
-        ->where($idField, $request->input($idField))
-        ->update($updateData);
+    // Save table configuration
+    ConnectionTable::updateOrCreate(
+        [
+            'db_connection_id' => $connectionId,
+            'table_name' => $table,
+        ],
+        [
+            'name' => $request->name,
+            'primary_key' => $request->primary_key,
+            'fields' => $request->fields,
+            'editable_fields' => $request->editable_fields ?? [],
+            'input_types' => $request->input_types ?? [],
+        ]
+    );
 
-    return redirect()
-        ->route('product.index', ['conn' => $conn->id])
-        ->with('success', $affected ? 'Product updated successfully!' : 'No changes were made.');
+    return back()->with('success', 'Table configuration saved!');
 }
 
-    // 7. Find product for edit — FINAL FIXED
-    //
 
+    // Main product list - now supports multiple tables per connection
 
-// 9. Delete product — FINAL FIXED
-public function deleteProduct(Request $request)
+    public function index(Request $request)
 {
-    $connectionId = $request->input('connection_id');
-    $conn = DbConnection::findOrFail($connectionId);
-    $idField = $conn->primary_key;
+    $connections = auth()->user()->dbConnections()->with('tables')->get();
 
-    if (!$request->has($idField)) {
-        return back()->with('error', "The {$idField} field is required.");
+    if ($connections->isEmpty()) {
+        return redirect()->route('connect.form');
     }
 
-    $dbConn = $this->db->connect($conn->only(['host','port','database','username','password']));
+    $connectionId = $request->query('conn') ?? $connections->first()->id;
+    $tableId = $request->query('table') ?? null;
 
-    $deleted = $dbConn->table($conn->table_name)
-        ->where($idField, $request->input($idField))
-        ->delete();
+    $connection = $connections->find($connectionId) ?? $connections->first();
 
-    return back()->with($deleted ? 'success' : 'error', $deleted ? 'Deleted!' : 'Not found');
+    // Get active table
+    if ($tableId) {
+        $activeTable = $connection->tables()->find($tableId);
+    } else {
+        $activeTable = $connection->tables()->first();
+    }
+
+    if (!$activeTable) {
+        return redirect()->route('connection.tables', $connection->id)
+            ->with('error', 'No tables configured for this connection.');
+    }
+
+    try {
+        $dbConn = $this->db->connect($connection->connection_config);
+        $query = $dbConn->table($activeTable->table_name);
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search, $activeTable) {
+                foreach ($activeTable->fields as $field) {
+                    $q->orWhere($field, 'like', "%{$search}%");
+                }
+            });
+        }
+
+        $products = $query->paginate(15)->withQueryString();
+
+        return Inertia::render('Product/Index', [
+            'products' => $products,
+            'connections' => $connections,
+            'activeConnection' => $connection,
+            'activeTable' => $activeTable, // Make sure this is passed
+            'fields' => $activeTable->fields,
+            'idField' => $activeTable->primary_key,
+            'editableFields' => $activeTable->editable_fields,
+            'inputTypes' => $activeTable->input_types ?? [],
+        ]);
+
+    } catch (\Exception $e) {
+        return back()->with('error', 'Failed to connect: ' . $e->getMessage());
+    }
+}
+
+    // Show create form
+    public function create(Request $request)
+    {
+        $table = $this->getActiveTable($request);
+        if (!$table) return redirect()->route('product.index');
+
+        return Inertia::render('Product/Create', [
+            'table' => $table,
+            'editableFields' => $table->editable_fields,
+            'inputTypes' => $table->input_types ?? [],
+            'idField' => $table->primary_key,
+            'connectionId' => $table->connection->id,
+        ]);
+    }
+
+    // Store new product
+    public function store(Request $request)
+    {
+        $table = $this->getActiveTable($request);
+        if (!$table) return redirect()->route('product.index');
+
+        $idField = $table->primary_key;
+
+        if (!$request->has($idField)) {
+            return back()->with('error', "The {$idField} field is required.");
+        }
+
+
+
+
+        $dbConn = $this->db->connect($table->connection->connection_config);
+
+        $data = $request->only(array_merge($table->editable_fields, [$idField]));
+
+        $dbConn->table($table->table_name)->insert($data);
+
+        return redirect()->route('product.index', [
+            'conn' => $table->db_connection_id,
+            'table' => $table->id
+        ])->with('success', 'Product created!');
+    }
+
+    // Find product for edit
+    public function findProduct(Request $request)
+    {
+        $request->validate([
+            'table_id' => 'required|exists:connection_tables,id',
+        ]);
+
+        $table = ConnectionTable::with('connection')->findOrFail($request->table_id);
+        $idField = $table->primary_key;
+        $idValue = $request->input($idField);
+
+        if (!$idValue) {
+            return back()->with('error', 'Product ID is required.');
+        }
+
+        $dbConn = $this->db->connect($table->connection->connection_config);
+
+        $product = $dbConn->table($table->table_name)
+            ->where($idField, $idValue)
+            ->first();
+
+        if (!$product) {
+            return back()->with('error', 'Product not found.');
+        }
+
+        return Inertia::render('Product/Show', [
+            'product' => (array) $product,
+            'table' => $table,
+            'editableFields' => $table->editable_fields ?? [],
+            'inputTypes' => $table->input_types ?? [],
+            'idField' => $idField,
+            'table_id' => $table->id
+        ]);
+    }
+
+    // Update product
+    public function updateProduct(Request $request)
+    {
+        $request->validate([
+            'table_id' => 'required|exists:connection_tables,id',
+        ]);
+
+
+        $table = ConnectionTable::with('connection')->findOrFail($request->table_id);
+        $idField = $table->primary_key;
+
+        if (!$request->has($idField)) {
+            return back()->withErrors(["{$idField}" => "The {$idField} field is required."]);
+        }
+
+        $dbConn = $this->db->connect($table->connection->connection_config);
+
+        $updateData = $request->only($table->editable_fields ?? []);
+
+        $affected = $dbConn->table($table->table_name)
+            ->where($idField, $request->input($idField))
+            ->update($updateData);
+
+        return redirect()->route('product.index', [
+            'conn' => $table->db_connection_id,
+            'table' => $table->id
+        ])->with('success', $affected ? 'Product updated successfully!' : 'No changes were made.');
+    }
+
+    // Delete product
+    public function deleteProduct(Request $request)
+    {
+        $request->validate([
+            'table_id' => 'required|exists:connection_tables,id',
+        ]);
+
+        $table = ConnectionTable::with('connection')->findOrFail($request->table_id);
+        $idField = $table->primary_key;
+
+        if (!$request->has($idField)) {
+            return back()->with('error', "The {$idField} field is required.");
+        }
+
+        $dbConn = $this->db->connect($table->connection->connection_config);
+
+        $deleted = $dbConn->table($table->table_name)
+            ->where($idField, $request->input($idField))
+            ->delete();
+
+        return back()->with($deleted ? 'success' : 'error',
+            $deleted ? 'Deleted!' : 'Not found');
+    }
+
+    // Delete table configuration
+    public function deleteTable($connectionId, $tableId)
+    {
+        ConnectionTable::where('db_connection_id', $connectionId)
+            ->where('id', $tableId)
+            ->delete();
+
+        return back()->with('success', 'Table configuration deleted.');
+    }
+
+    // Helper: Get active table
+    private function getActiveTable($request)
+    {
+        $tableId = $request->query('table');
+        if ($tableId) {
+            return ConnectionTable::with('connection')->find($tableId);
+        }
+
+        // Try to get from connection
+        $connectionId = $request->query('conn') ?? $request->get('conn');
+        if ($connectionId) {
+            $connection = DbConnection::with('tables')->find($connectionId);
+            return $connection->tables->first();
+        }
+
+
+        return null;
+    }
+
+    // In ProductController
+public function getTableColumns($connectionId, $tableName)
+{
+    $connection = DbConnection::findOrFail($connectionId);
+
+    try {
+        $dbConn = $this->db->connect($connection->connection_config);
+        $columns = $dbConn->select("SHOW COLUMNS FROM {$tableName}");
+
+        $columnNames = array_column($columns, 'Field');
+
+        return response()->json([
+            'columns' => $columnNames,
+            'types' => array_column($columns, 'Type'),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 }
 
 
 
-    // Helper: get active connection from query or first
-    private function getActiveConnection($request)
-    {
-        $id = $request->query('conn') ?? auth()->user()->dbConnections()->first()?->id;
-        return $id ? DbConnection::find($id) : null;
+    public function getTableStructure($connectionId, $tableName)
+{
+    $connection = auth()->user()->dbConnections()->findOrFail($connectionId);
+
+    try {
+        $dbConn = $this->db->connect($connection->connection_config);
+
+        // Get detailed column information
+        $columns = $dbConn->select("
+            SELECT
+                COLUMN_NAME as Field,
+                COLUMN_TYPE as Type,
+                IS_NULLABLE as `Null`,
+                COLUMN_KEY as `Key`,
+                COLUMN_DEFAULT as `Default`,
+                EXTRA as Extra,
+                COLUMN_COMMENT as Comment,
+                CHARACTER_MAXIMUM_LENGTH as MaxLength,
+                NUMERIC_PRECISION as Precision,
+                NUMERIC_SCALE as Scale
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = ?
+            AND TABLE_NAME = ?
+            ORDER BY ORDINAL_POSITION
+        ", [$connection->database, $tableName]);
+
+        // Get table comment and engine
+        $tableInfo = $dbConn->select("
+            SELECT
+                TABLE_COMMENT as Comment,
+                ENGINE as Engine,
+                TABLE_ROWS as Rows,
+                DATA_LENGTH as DataLength,
+                INDEX_LENGTH as IndexLength,
+                CREATE_TIME as Created
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = ?
+            AND TABLE_NAME = ?
+        ", [$connection->database, $tableName])[0] ?? null;
+
+        return response()->json([
+            'success' => true,
+            'columns' => $columns,
+            'tableInfo' => $tableInfo,
+            'database' => $connection->database,
+            'tableName' => $tableName,
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'message' => 'Failed to fetch table structure',
+        ], 500);
     }
+}
+
+/**
+ * Quick test connection
+ */
+public function quickTest($connectionId)
+{
+    $connection = auth()->user()->dbConnections()->findOrFail($connectionId);
+
+    try {
+        $dbConn = $this->db->connect($connection->connection_config);
+
+        // Simple test query
+        $dbConn->select('SELECT 1 as test');
+
+        // Get database info
+        $version = $dbConn->select('SELECT VERSION() as version')[0]->version;
+        $tablesCount = count($dbConn->select('SHOW TABLES'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Connection successful',
+            'database' => $connection->database,
+            'version' => $version,
+            'tablesCount' => $tablesCount,
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Connection failed: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
 }

@@ -26,6 +26,8 @@ export default function ProductCreate({
 }: Props) {
   const { data, setData, post, processing, errors } = useForm({
     connection_id: connectionId,
+    connection: connectionId,
+    conn: connectionId,
     [idField]: "",
     ...Object.fromEntries(editableFields.map((field) => [field, ""])),
   });

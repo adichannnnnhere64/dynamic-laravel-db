@@ -28,6 +28,11 @@ interface IndexProps {
     products: { data: Product[]; links: any[] };
     fields: string[];
     idField: string;
+    connections: any[];
+    activeConnection: any;
+    activeTable: any; // Add this prop
+    editableFields: string[];
+    inputTypes: Record<string, string>;
 }
 
 const BarcodeScanner = ({
@@ -117,32 +122,60 @@ const BarcodeScanner = ({
     );
 };
 
-
-export default function Index({ products, connections, activeConnection, fields, idField, editableFields, inputs }) {
+export default function Index({
+    products,
+    connections,
+    activeConnection,
+    activeTable, // Add this
+    fields,
+    idField,
+    editableFields,
+    inputTypes
+}: IndexProps) {
     const [showScanner, setShowScanner] = useState(false);
     const [search, setSearch] = useState("");
 
-    const switchConnection = (id: string) => {
-        router.get('/product', { conn: id }, { preserveState: true });
+    const switchConnection = (connId: string) => {
+        router.get('/product', {
+            conn: connId,
+            // When switching connection, keep the table if it exists in new connection
+            table: connections.find(c => c.id.toString() === connId)?.tables?.[0]?.id || null
+        }, { preserveState: true });
+    };
+
+    const switchTable = (tableId: string) => {
+        router.get('/product', {
+            conn: activeConnection.id,
+            table: tableId
+        }, { preserveState: true });
     };
 
     const handleScan = (code: string) => {
         setSearch(code);
-        router.get('/product', { search: code, conn: activeConnection.id }, { preserveState: true });
+        router.get('/product', {
+            search: code,
+            conn: activeConnection.id,
+            table: activeTable.id
+        }, { preserveState: true });
         setShowScanner(false);
     };
 
     const goToEdit = (id: string) => {
-        router.visit('/product/search', {
-            method: 'post',
-            data: { connection_id: activeConnection.id, [idField]: id }
+        router.post('/product/search', {
+            table_id: activeTable.id,
+            connection_id: activeConnection.id,
+            [idField]: id
         });
     };
 
     const handleDelete = (id: string) => {
         if (!confirm("Delete this item?")) return;
         router.delete('/product/delete', {
-            data: { connection_id: activeConnection.id, [idField]: id }
+            data: {
+                table_id: activeTable.id,
+                connection_id: activeConnection.id,
+                [idField]: id
+            }
         });
     };
 
@@ -151,37 +184,60 @@ export default function Index({ products, connections, activeConnection, fields,
             <Head title="Products" />
 
             <div className="max-w-7xl mx-auto p-4">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <h1 className="text-2xl font-bold">Products</h1>
-                    <Select value={activeConnection.id.toString()} onValueChange={switchConnection}>
-                        <SelectTrigger className="w-64">
-                            <SelectValue>{activeConnection.name}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {connections.map(c => (
-                                <SelectItem key={c.id} value={c.id.toString()}>
-                                    {c.name} ({c.table_name})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <Select value={activeConnection.id.toString()} onValueChange={switchConnection}>
+                            <SelectTrigger className="w-64">
+                                <SelectValue>{activeConnection.name}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {connections.map(c => (
+                                    <SelectItem key={c.id} value={c.id.toString()}>
+                                        {c.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={activeTable.id.toString()} onValueChange={switchTable}>
+                            <SelectTrigger className="w-64">
+                                <SelectValue>{activeTable.name}</SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {activeConnection.tables.map((t: any) => (
+                                    <SelectItem key={t.id} value={t.id.toString()}>
+                                        {t.name} ({t.table_name})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Search + Scanner */}
-                <div className="flex gap-2 mb-4">
-                    <input
-                        className="flex-1 px-3 py-2 border rounded"
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                    <Input
+                        className="flex-1"
                         placeholder={`Search by ${fields.join(", ")}`}
                         value={search}
                         onChange={e => {
                             setSearch(e.target.value);
-                            router.get('/product', { search: e.target.value }, { preserveState: true });
+                            router.get('/product', {
+                                search: e.target.value,
+                                conn: activeConnection.id,
+                                table: activeTable.id
+                            }, { preserveState: true });
                         }}
                     />
-                    <Button onClick={() => setShowScanner(true)}>Scan QR</Button>
-                    <Button asChild>
-                        <a href="/product/create">+ Add New</a>
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={() => setShowScanner(true)}>Scan QR</Button>
+                        <Button asChild>
+                            <a href={`/product/create?conn=${activeConnection.id}&table=${activeTable.id}`}>
+                                + Add New
+                            </a>
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -195,35 +251,22 @@ export default function Index({ products, connections, activeConnection, fields,
                         </thead>
                         <tbody>
                             {products.data.map((p, i) => (
-                                <tr key={i} className="border-t">
+                                <tr key={i} className="border-t hover:bg-gray-50">
                                     {fields.map(f => <td key={f} className="px-4 py-3">{p[f]}</td>)}
                                     <td className="px-4 py-3 space-x-2">
-
                                         <Button
-    size="sm"
-    onClick={() => router.post('/product/search', {
-        connection_id: activeConnection.id,
-        [idField]: p[idField]  // Sends: { connection_id: 5, ITEMID: "ABC123" }
-    })}
->
-    Edit
-</Button>
-
-
+                                            size="sm"
+                                            onClick={() => goToEdit(p[idField])}
+                                        >
+                                            Edit
+                                        </Button>
                                         <Button
-    size="sm"
-    variant="destructive"
-    onClick={ () => window.confirm('are you sure?') && router.delete('/product/delete', {
-        data: {
-            connection_id: activeConnection.id,
-            [idField]: p[idField]
-        }
-    })}
->
-    Delete
-</Button>
-
-
+                                            size="sm"
+                                            variant="destructive"
+                                            onClick={() => handleDelete(p[idField])}
+                                        >
+                                            Delete
+                                        </Button>
                                     </td>
                                 </tr>
                             ))}
@@ -231,13 +274,54 @@ export default function Index({ products, connections, activeConnection, fields,
                     </table>
                 </div>
 
+                {/* Pagination */}
+                {products.links && products.links.length > 3 && (
+                    <div className="mt-4 flex justify-center">
+                        <div className="flex gap-1">
+                            {products.links.map((link: any, index: number) => (
+                                <button
+                                    key={index}
+                                    onClick={() => router.get(link.url || '#', {}, { preserveState: true })}
+                                    className={`px-3 py-1 rounded ${
+                                        link.active
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    } ${!link.url ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={!link.url}
+                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Table Info */}
+                <div className="mt-4 text-sm text-gray-600">
+                    Showing {products.data.length} records from table <strong>{activeTable.table_name}</strong>
+                </div>
+
                 {showScanner && (
                     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-                        <div className="p-4 bg-black text-white flex justify-between">
-                            <h2>Scan QR Code</h2>
-                            <button onClick={() => setShowScanner(false)}>×</button>
+                        <div className="p-4 bg-black text-white flex justify-between items-center">
+                            <h2 className="text-lg font-semibold">Scan QR Code</h2>
+                            <button
+                                onClick={() => setShowScanner(false)}
+                                className="text-2xl hover:text-gray-300"
+                            >
+                                ×
+                            </button>
                         </div>
-                        <BarcodeScanner onScan={handleScan} />
+                        <div className="flex-1 relative">
+                            <BarcodeScanner
+                                onScan={handleScan}
+                                onError={(error) => {
+                                    console.error('Scanner error:', error);
+                                    alert('Scanner error: ' + error.message);
+                                    setShowScanner(false);
+                                }}
+                                active={showScanner}
+                            />
+                        </div>
                     </div>
                 )}
             </div>

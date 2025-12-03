@@ -18,6 +18,7 @@ type Props = {
   idField: string;
   inputTypes?: Record<string, string>;
   connectionId: number; // Important: to know which DB to update
+  table_id: any
 };
 
 export default function ProductShow({
@@ -26,10 +27,13 @@ export default function ProductShow({
   idField,
   inputTypes = {},
   connectionId,
+  table_id
 }: Props) {
   // Initialize form with product data + connection_id
   const { data, setData, post, processing, errors } = useForm({
     connection_id: connectionId,
+    conn: connectionId,
+    table_id: table_id,
     [idField]: product[idField] ?? "",
     ...Object.fromEntries(
       editableFields.map((field) => [field, product[field] ?? ""])
