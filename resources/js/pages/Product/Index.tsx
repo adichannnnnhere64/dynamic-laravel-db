@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     Card,
     CardContent,
@@ -116,145 +117,130 @@ const BarcodeScanner = ({
     );
 };
 
-export default function Index({ products, fields, idField }: IndexProps) {
+
+export default function Index({ products, connections, activeConnection, fields, idField, editableFields, inputs }) {
     const [showScanner, setShowScanner] = useState(false);
     const [search, setSearch] = useState("");
-    const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    const handleSearch = (value: string) => {
-        setSearch(value);
-        router.get(
-            "/product",
-            { search: value },
-            {
-                preserveState: true,
-                replace: true,
-            }
-        );
+    const switchConnection = (id: string) => {
+        router.get('/product', { conn: id }, { preserveState: true });
     };
 
-    const handleScanSuccess = (data: string) => {
+    const handleScan = (code: string) => {
+        setSearch(code);
+        router.get('/product', { search: code, conn: activeConnection.id }, { preserveState: true });
         setShowScanner(false);
-        setSearch(data);
-        handleSearch(data);
     };
 
-    const handleScanError = (err: Error) => {
-        console.error("QR scan error:", err);
+    const goToEdit = (id: string) => {
+        router.visit('/product/search', {
+            method: 'post',
+            data: { connection_id: activeConnection.id, [idField]: id }
+        });
     };
 
-    const handleDelete = (productId: string) => {
-        if (confirm("Are you sure you want to delete this product?")) {
-            setDeletingId(productId);
-            router.delete("/product/delete", {
-                data: { [idField]: productId },
-                preserveScroll: true,
-                onFinish: () => setDeletingId(null),
-            });
-        }
+    const handleDelete = (id: string) => {
+        if (!confirm("Delete this item?")) return;
+        router.delete('/product/delete', {
+            data: { connection_id: activeConnection.id, [idField]: id }
+        });
     };
 
     return (
-        <>
-            <AppLayout>
-                <Head title="Products" />
+        <AppLayout>
+            <Head title="Products" />
 
-                <Card>
-                    <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <CardTitle>Products</CardTitle>
+            <div className="max-w-7xl mx-auto p-4">
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold">Products</h1>
+                    <Select value={activeConnection.id.toString()} onValueChange={switchConnection}>
+                        <SelectTrigger className="w-64">
+                            <SelectValue>{activeConnection.name}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {connections.map(c => (
+                                <SelectItem key={c.id} value={c.id.toString()}>
+                                    {c.name} ({c.table_name})
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
 
-                        <div className="flex gap-2 w-full md:w-auto">
-                            <Input
-                                type="text"
-                                placeholder={`Search by ${fields.join(", ")}`}
-                                value={search}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                className="flex-1"
-                            />
-                            <Button size="sm" onClick={() => setShowScanner(true)}>
-                                Scan QR
-                            </Button>
-                        </div>
-                    </CardHeader>
+                {/* Search + Scanner */}
+                <div className="flex gap-2 mb-4">
+                    <input
+                        className="flex-1 px-3 py-2 border rounded"
+                        placeholder={`Search by ${fields.join(", ")}`}
+                        value={search}
+                        onChange={e => {
+                            setSearch(e.target.value);
+                            router.get('/product', { search: e.target.value }, { preserveState: true });
+                        }}
+                    />
+                    <Button onClick={() => setShowScanner(true)}>Scan QR</Button>
+                    <Button asChild>
+                        <a href="/product/create">+ Add New</a>
+                    </Button>
+                </div>
 
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    {fields.map((f) => (
-                                        <TableHead key={f} className="capitalize">
-                                            {f.replace(/_/g, " ")}
-                                        </TableHead>
-                                    ))}
-                                    <TableHead className="text-center">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
+                {/* Table */}
+                <div className="bg-white rounded shadow overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                {fields.map(f => <th key={f} className="px-4 py-3 text-left">{f}</th>)}
+                                <th className="px-4 py-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {products.data.map((p, i) => (
+                                <tr key={i} className="border-t">
+                                    {fields.map(f => <td key={f} className="px-4 py-3">{p[f]}</td>)}
+                                    <td className="px-4 py-3 space-x-2">
 
-                            <TableBody>
-                                {products.data.length > 0 ? (
-                                    products.data.map((p, i) => (
-                                        <TableRow key={i}>
-                                            {fields.map((f) => (
-                                                <TableCell key={f}>{p[f]}</TableCell>
-                                            ))}
-                                            <TableCell className="text-center flex items-center justify-center space-x-2">
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        router.visit(`/product/search`, {
-                                                            method: "post",
-                                                            data: { [idField]: p[idField] },
-                                                        })
-                                                    }
-                                                >
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    onClick={() => handleDelete(p[idField])}
-                                                    disabled={deletingId === p[idField]}
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                    {deletingId === p[idField] ? "Deleting..." : "Delete"}
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={fields.length + 1}
-                                            className="text-center text-gray-500"
-                                        >
-                                            No products found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                                        <Button
+    size="sm"
+    onClick={() => router.post('/product/search', {
+        connection_id: activeConnection.id,
+        [idField]: p[idField]  // Sends: { connection_id: 5, ITEMID: "ABC123" }
+    })}
+>
+    Edit
+</Button>
+
+
+                                        <Button
+    size="sm"
+    variant="destructive"
+    onClick={ () => window.confirm('are you sure?') && router.delete('/product/delete', {
+        data: {
+            connection_id: activeConnection.id,
+            [idField]: p[idField]
+        }
+    })}
+>
+    Delete
+</Button>
+
+
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
                 {showScanner && (
                     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-                        <div className="flex justify-between items-center p-2">
-                            <h2 className="text-white">Scan QR</h2>
-                            <Button variant="ghost" onClick={() => setShowScanner(false)}>
-                                <X className="w-6 h-6 text-white" />
-                            </Button>
+                        <div className="p-4 bg-black text-white flex justify-between">
+                            <h2>Scan QR Code</h2>
+                            <button onClick={() => setShowScanner(false)}>×</button>
                         </div>
-
-                        <div className="flex-1 relative">
-                            <BarcodeScanner
-                                active={showScanner}
-                                onScan={handleScanSuccess}
-                                onError={handleScanError}
-                            />
-                        </div>
+                        <BarcodeScanner onScan={handleScan} />
                     </div>
                 )}
-            </AppLayout>
-        </>
+            </div>
+        </AppLayout>
     );
 }
