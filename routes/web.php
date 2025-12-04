@@ -28,6 +28,7 @@ Route::middleware(['auth'])->group(function () {
     // Table management for a connection
     Route::get('/connect/{connection}/tables', [ProductController::class, 'showTables'])->name('connection.tables');
     Route::post('/connect/{connection}/tables', [ProductController::class, 'saveTable']);
+    Route::put('/connect/{connection}/tables', [ProductController::class, 'saveTable']);
     Route::delete('/connect/{connection}/tables/{table}', [ProductController::class, 'deleteTable']);
 
     // Product management
@@ -38,6 +39,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/product/search', [ProductController::class, 'findProduct'])->name('product.search');
     Route::post('/product/update', [ProductController::class, 'updateProduct'])->name('product.update');
     Route::delete('/product/delete', [ProductController::class, 'deleteProduct'])->name('product.delete');
+
+    Route::delete('/product/bulk-delete', [ProductController::class, 'bulkDelete'])->name('product.bulkDelete');
 
     // Connection deletion
     Route::delete('/connect/{id}', [ProductController::class, 'disconnect']);

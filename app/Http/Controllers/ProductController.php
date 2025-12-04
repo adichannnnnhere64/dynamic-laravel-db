@@ -211,46 +211,120 @@ class ProductController extends Controller
 }
 
     // Show create form
-    public function create(Request $request)
-    {
-        $table = $this->getActiveTable($request);
-        if (!$table) return redirect()->route('product.index');
 
-        return Inertia::render('Product/Create', [
-            'table' => $table,
-            'editableFields' => $table->editable_fields,
-            'inputTypes' => $table->input_types ?? [],
-            'idField' => $table->primary_key,
-            'connectionId' => $table->connection->id,
-        ]);
+    // In ProductController.php - create method
+public function create(Request $request)
+{
+    $connections = auth()->user()->dbConnections()->with('tables')->get();
+
+    if ($connections->isEmpty()) {
+        return redirect()->route('connect.form');
     }
+
+    $connectionId = $request->query('conn') ?? $connections->first()->id;
+    $tableId = $request->query('table') ?? null;
+
+    $connection = $connections->find($connectionId) ?? $connections->first();
+
+    if ($tableId) {
+        $table = ConnectionTable::with('connection')->find($tableId);
+    } else {
+        $table = $connection->tables()->first();
+    }
+
+    if (!$table) {
+        return redirect()->route('connection.tables', $connection->id)
+            ->with('error', 'No tables configured for this connection.');
+    }
+
+    // Check if primary key is auto-increment
+    $primaryKeyAutoIncrement = false;
+    try {
+        $dbConn = $this->db->connect($table->connection->connection_config);
+        $columns = $dbConn->select("SHOW COLUMNS FROM `{$table->table_name}`");
+
+        foreach ($columns as $column) {
+            if ($column->Field === $table->primary_key &&
+                str_contains($column->Extra, 'auto_increment')) {
+                $primaryKeyAutoIncrement = true;
+                break;
+            }
+        }
+    } catch (\Exception $e) {
+        // If we can't check, assume it's not auto-increment
+    }
+
+    return Inertia::render('Product/Create', [
+        'connections' => $connections,
+        'connection' => $connection,
+        'table' => array_merge($table->toArray(), [
+            'primary_key_auto_increment' => $primaryKeyAutoIncrement,
+        ]),
+    ]);
+}
 
     // Store new product
+
     public function store(Request $request)
-    {
-        $table = $this->getActiveTable($request);
-        if (!$table) return redirect()->route('product.index');
+{
+    $request->validate([
+        'table_id' => 'required|exists:connection_tables,id',
+        'connection_id' => 'required|exists:db_connections,id',
+    ]);
 
-        $idField = $table->primary_key;
+    $table = ConnectionTable::with('connection')->findOrFail($request->table_id);
 
-        if (!$request->has($idField)) {
-            return back()->with('error', "The {$idField} field is required.");
-        }
-
-
-
-
-        $dbConn = $this->db->connect($table->connection->connection_config);
-
-        $data = $request->only(array_merge($table->editable_fields, [$idField]));
-
-        $dbConn->table($table->table_name)->insert($data);
-
-        return redirect()->route('product.index', [
-            'conn' => $table->db_connection_id,
-            'table' => $table->id
-        ])->with('success', 'Product created!');
+    if ($table->db_connection_id != $request->connection_id) {
+        return back()->with('error', 'Invalid connection for this table.');
     }
+
+    $idField = $table->primary_key;
+
+    // Check if primary key is auto-increment
+    $isAutoIncrement = false;
+    try {
+        $dbConn = $this->db->connect($table->connection->connection_config);
+        $columns = $dbConn->select("SHOW COLUMNS FROM `{$table->table_name}`");
+
+        foreach ($columns as $column) {
+            if ($column->Field === $idField &&
+                str_contains($column->Extra, 'auto_increment')) {
+                $isAutoIncrement = true;
+                break;
+            }
+        }
+    } catch (\Exception $e) {
+        // If we can't check, assume it's not auto-increment
+    }
+
+    // Only require primary key if it's NOT auto-increment
+    if (!$isAutoIncrement && !$request->has($idField)) {
+        return back()->with('error', "The {$idField} field is required.");
+    }
+
+    // Prepare data
+    $data = [];
+
+    // Add primary key only if provided (for auto-increment, it can be empty)
+    if ($request->has($idField) && !empty($request->input($idField))) {
+        $data[$idField] = $request->input($idField);
+    }
+
+    // Add editable fields
+    foreach ($table->editable_fields as $field) {
+        if ($request->has($field)) {
+            $data[$field] = $request->input($field);
+        }
+    }
+
+    // Insert into database
+    $dbConn->table($table->table_name)->insert($data);
+
+    return redirect()->route('product.index', [
+        'conn' => $table->db_connection_id,
+        'table' => $table->id
+    ])->with('success', 'Product created!');
+}
 
     // Find product for edit
     public function findProduct(Request $request)
@@ -277,11 +351,14 @@ class ProductController extends Controller
             return back()->with('error', 'Product not found.');
         }
 
+        $connections = auth()->user()->dbConnections()->with('tables')->get();
         return Inertia::render('Product/Show', [
             'product' => (array) $product,
             'table' => $table,
             'editableFields' => $table->editable_fields ?? [],
             'inputTypes' => $table->input_types ?? [],
+            'connection' => $table->connection,
+            'connections' => $connections,
             'idField' => $idField,
             'table_id' => $table->id
         ]);
@@ -480,5 +557,54 @@ public function quickTest($connectionId)
         ], 500);
     }
 }
+
+
+
+    /*     $table = ConnectionTable::with('connection')->findOrFail($request->table_id); */
+    /*     $idField = $table->primary_key; */
+    /**/
+    /*     if (!$request->has($idField)) { */
+    /*         return back()->with('error', "The {$idField} field is required."); */
+    /*     } */
+    /**/
+    /*     $dbConn = $this->db->connect($table->connection->connection_config); */
+    /**/
+    /*     $deleted = $dbConn->table($table->table_name) */
+    /*         ->where($idField, $request->input($idField)) */
+    /*         ->delete(); */
+    /**/
+    /*     return back()->with($deleted ? 'success' : 'error', */
+    /*         $deleted ? 'Deleted!' : 'Not found'); */
+    /* } */
+    /**/
+    /**/
+
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'table_id' => 'required|exists:connection_tables,id',
+            'connection_id' => 'required|exists:db_connections,id',
+            'rows' => 'required|array|min:1',
+        ]);
+
+
+        $table = ConnectionTable::with('connection')->findOrFail($request->table_id);
+
+        if ($table->connection->user_id != auth()->user()->id) {
+            return response()->json([
+                'Invalid database'
+            ], 401);
+        }
+
+        $dbConn = $this->db->connect($table->connection->connection_config);
+        $idField = $table->primary_key;
+
+        $deleted = $dbConn->table($table->table_name)
+            ->whereIn($idField, $request->rows)
+            ->delete();
+
+        return back()->with($deleted ? 'success' : 'error',
+            $deleted ? 'Deleted!' : 'Not found');
+    }
 
 }

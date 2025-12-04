@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AppLayout from "@/layouts/app-layout";
-import { useForm, router } from "@inertiajs/react";
+import { useForm, router, Link } from "@inertiajs/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -261,13 +261,13 @@ export default function ConnectionTables({ connection, actualTables }: any) {
                                                         <Edit className="w-4 h-4 mr-1" />
                                                         Edit
                                                     </Button>
-                                                    <a
+                                                    <Link
                                                         href={`/product?conn=${connection.id}&table=${table.id}`}
                                                         className="px-3 py-1 bg-blue-600 text-white rounded text-sm flex items-center"
                                                     >
                                                         <Eye className="w-4 h-4 mr-1" />
                                                         View Data
-                                                    </a>
+                                                    </Link>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

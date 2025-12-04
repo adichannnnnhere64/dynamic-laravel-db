@@ -26,8 +26,8 @@ const mainNavItems: NavItem[] = [
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Disconnect Mysql',
-        href: '/disconnect',
+        title: 'Create new connection',
+        href: '/connect',
         icon: XIcon,
     },
 

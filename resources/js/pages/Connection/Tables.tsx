@@ -1,7 +1,7 @@
 // resources/js/Pages/Connection/Tables.tsx
 import React, { useState, useEffect } from "react";
 import AppLayout from "@/layouts/app-layout";
-import { useForm, router, usePage } from "@inertiajs/react";
+import { useForm, router, usePage, Link } from "@inertiajs/react";
 import {
     Card,
     CardContent,
@@ -78,7 +78,6 @@ import {
     Calendar,
     Hash,
     Mail,
-    Link,
     ChevronLeft,
     Search,
     AlertCircle,
@@ -913,9 +912,9 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
                                                                         size="sm"
                                                                         asChild
                                                                     >
-                                                                        <a href={`/product?conn=${connection.id}&table=${table.id}`}>
+                                                                        <Link href={`/product?conn=${connection.id}&table=${table.id}`}>
                                                                             <Eye className="w-3 h-3" />
-                                                                        </a>
+                                                                        </Link>
                                                                     </Button>
                                                                     <AlertDialog>
                                                                         <AlertDialogTrigger asChild>
@@ -1039,9 +1038,9 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
                                                                             className="flex-1"
                                                                             asChild
                                                                         >
-                                                                            <a href={`/product?conn=${connection.id}&table=${configuredTable?.id}`}>
+                                                                            <Link href={`/product?conn=${connection.id}&table=${configuredTable?.id}`}>
                                                                                 View
-                                                                            </a>
+                                                                            </Link>
                                                                         </Button>
                                                                     </>
                                                                 ) : (

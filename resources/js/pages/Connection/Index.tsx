@@ -1,6 +1,6 @@
 import React from "react";
 import AppLayout from "@/layouts/app-layout";
-import { useForm } from "@inertiajs/react";
+import { Link, useForm } from "@inertiajs/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,18 +83,18 @@ export default function ConnectionPage({ connections }: any) {
                                                 <p className="text-sm text-gray-500">{conn.database} @ {conn.host}:{conn.port}</p>
                                             </div>
                                             <div className="space-x-2">
-                                                <a
+                                                <Link
                                                     href={`/connect/${conn.id}/tables`}
                                                     className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
                                                 >
                                                     Manage Tables ({conn.tables?.length || 0})
-                                                </a>
-                                                <a
+                                                </Link>
+                                                <Link
                                                     href={`/product?conn=${conn.id}`}
                                                     className="px-3 py-1 bg-green-600 text-white rounded text-sm"
                                                 >
                                                     View Data
-                                                </a>
+                                                </Link>
                                             </div>
                                         </div>
                                     ))}
