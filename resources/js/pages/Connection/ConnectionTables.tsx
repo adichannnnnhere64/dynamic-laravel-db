@@ -281,3 +281,5 @@ export default function ConnectionTables({ connection, actualTables }: any) {
                 </Card>
             </div>
         </AppLayout>
+    )
+}
