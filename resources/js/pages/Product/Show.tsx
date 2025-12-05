@@ -129,7 +129,7 @@ export default function ProductShow({
             placeholder: `Enter ${field}`,
             disabled: processing || isPrimaryKey,
             className: "w-full mt-2",
-            readOnly: isPrimaryKey,
+            readOnly: false,
         };
 
         switch (inputType) {

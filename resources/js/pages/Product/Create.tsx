@@ -141,7 +141,7 @@ export default function ProductCreate({
             disabled: processing || (isPrimaryKey && isAutoIncrement),
             className: "w-full mt-2",
             required: isPrimaryKey && !isAutoIncrement, // Only required if not auto-increment
-            readOnly: isPrimaryKey && isAutoIncrement,
+            readOnly: false,
         };
 
         switch (inputType) {

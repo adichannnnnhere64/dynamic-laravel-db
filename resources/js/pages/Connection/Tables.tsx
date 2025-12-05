@@ -779,7 +779,6 @@ const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<st
                                                                                     <Switch
                                                                                         checked={data.fields.includes(col)}
                                                                                         onCheckedChange={() => toggleField(col)}
-                                                                                        disabled={isPrimary}
                                                                                     />
                                                                                 </div>
 
@@ -811,7 +810,7 @@ const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<st
                                                                                     <Switch
                                                                                         checked={data.editable_fields.includes(col)}
                                                                                         onCheckedChange={() => toggleEditable(col)}
-                                                                                        disabled={!data.fields.includes(col) || isPrimary}
+                                                                                        disabled={!data.fields.includes(col) }
                                                                                     />
                                                                                 </div>
 
