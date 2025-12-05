@@ -652,10 +652,10 @@ export default function Index({
                                                             {search ? 'No results match your search.' : 'Start by adding your first product.'}
                                                         </p>
                                                         <Button asChild>
-                                                            <a href={`/product/create?conn=${activeConnection.id}&table=${activeTable.id}`}>
+                                                            <Link href={`/product/create?conn=${activeConnection.id}&table=${activeTable.id}`}>
                                                                 <Plus className="w-4 h-4 mr-2" />
                                                                 Add Product
-                                                            </a>
+                                                            </Link>
                                                         </Button>
                                                     </div>
                                                 </TableCell>

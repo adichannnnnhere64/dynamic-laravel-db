@@ -279,50 +279,88 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
 };
 
     const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        clearErrors();
+    e.preventDefault();
+    clearErrors();
 
-        if (!data.table_name) {
-            toast.error("Please select a table from the database");
-            return;
-        }
+    if (!data.table_name) {
+        toast.error("Please select a table from the database");
+        return;
+    }
 
-        if (!data.name.trim()) {
-            toast.error("Display name is required");
-            return;
-        }
+    if (!data.name.trim()) {
+        toast.error("Display name is required");
+        return;
+    }
 
-        if (!data.primary_key) {
-            toast.error("Primary key is required");
-            return;
-        }
+    if (!data.primary_key) {
+        toast.error("Primary key is required");
+        return;
+    }
 
-        if (data.fields.length === 0) {
-            toast.error("At least one field must be selected");
-            return;
-        }
+    // Ensure primary key is always in fields
+    if (!data.fields.includes(data.primary_key)) {
+        setData("fields", [data.primary_key, ...data.fields.filter(f => f !== data.primary_key)]);
+    }
 
-        const url = `/connect/${connection.id}/tables`;
-        const method = editingTable ? 'put' : 'post';
+    if (data.fields.length === 0) {
+        toast.error("At least one field must be selected");
+        return;
+    }
 
-        router[method](url, {
-            ...data,
-            id: editingTable?.id,
-        }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                reset();
-                setShowForm(false);
-                setSelectedTableName("");
-                setEditingTable(null);
-                setColumns([]);
-                setColumnTypes({});
-            },
-            onError: () => {
-                toast.error("Please check your form for errors");
+    // Ensure input_types has entries for all fields
+    const updatedInputTypes = { ...data.input_types };
+    data.fields.forEach(field => {
+        if (!updatedInputTypes[field]) {
+            // Determine default input type based on column type
+            const columnType = columnTypes[field] || 'varchar';
+            let inputType = 'text';
+
+            if (columnType.includes('int') || columnType.includes('decimal') || columnType.includes('float') || columnType.includes('double')) {
+                inputType = 'number';
+            } else if (columnType.includes('date')) {
+                inputType = 'date';
+            } else if (columnType.includes('datetime') || columnType.includes('timestamp')) {
+                inputType = 'datetime-local';
+            } else if (columnType.includes('time')) {
+                inputType = 'time';
+            } else if (columnType.includes('text') || columnType.includes('blob')) {
+                inputType = 'textarea';
+            } else if (columnType.includes('enum')) {
+                inputType = 'select';
+            } else if (columnType.includes('set') || columnType === 'tinyint(1)' || columnType.includes('boolean')) {
+                inputType = 'checkbox';
             }
-        });
-    };
+
+            updatedInputTypes[field] = inputType;
+        }
+    });
+
+    // Update data with complete input_types
+    setData("input_types", updatedInputTypes);
+
+    const url = `/connect/${connection.id}/tables`;
+    const method = editingTable ? 'put' : 'post';
+
+    router[method](url, {
+        ...data,
+        input_types: updatedInputTypes, // Use the updated input_types
+        id: editingTable?.id,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            reset();
+            setShowForm(false);
+            setSelectedTableName("");
+            setEditingTable(null);
+            setColumns([]);
+            setColumnTypes({});
+        },
+        onError: (errors) => {
+            console.error('Form errors:', errors);
+            toast.error("Please check your form for errors");
+        }
+    });
+};
 
     const editTable = async (table: TableConfig) => {
     console.log('Editing table:', table);
@@ -460,33 +498,51 @@ const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<st
         });
     };
 
-    const toggleField = (fieldName: string) => {
-        const newFields = data.fields.includes(fieldName)
-            ? data.fields.filter(f => f !== fieldName)
-            : [...data.fields, fieldName];
-        setData("fields", newFields);
-
-        if (!newFields.includes(fieldName)) {
-            const newEditable = data.editable_fields.filter(f => f !== fieldName);
-            setData("editable_fields", newEditable);
-
-            const newInputTypes = { ...data.input_types };
-            delete newInputTypes[fieldName];
-            setData("input_types", newInputTypes);
-        }
-    };
-
-    const selectAllFields = () => {
-        setData("fields", columns);
-        setData("editable_fields", columns.filter(f => f !== data.primary_key));
-    };
-
     const deselectAllFields = () => {
-        setData("fields", [data.primary_key]);
-        setData("editable_fields", []);
-    };
+    // Keep the primary key field selected ALWAYS
+    const fieldsToKeep = [data.primary_key].filter(field =>
+        columns.includes(field) && field && field.trim() !== ''
+    );
 
-    const getMysqlTypeIcon = (type: string) => {
+    setData("fields", fieldsToKeep);
+    setData("editable_fields", []);
+
+    // Keep only the primary key's input type
+    const newInputTypes: Record<string, string> = {};
+    if (data.primary_key) {
+        newInputTypes[data.primary_key] = data.input_types[data.primary_key] || 'text';
+    }
+    setData("input_types", newInputTypes);
+};
+
+const toggleField = (fieldName: string) => {
+    // Prevent unselecting the primary key
+    // if (fieldName === data.primary_key) {
+    //     toast.error("Cannot unselect primary key field");
+    //     return;
+    // }
+
+    const newFields = data.fields.includes(fieldName)
+        ? data.fields.filter(f => f !== fieldName)
+        : [...data.fields, fieldName];
+    setData("fields", newFields);
+
+    if (!newFields.includes(fieldName)) {
+        const newEditable = data.editable_fields.filter(f => f !== fieldName);
+        setData("editable_fields", newEditable);
+
+        const newInputTypes = { ...data.input_types };
+        delete newInputTypes[fieldName];
+        setData("input_types", newInputTypes);
+    }
+};
+
+const selectAllFields = () => {
+    setData("fields", columns);
+    setData("editable_fields", columns.filter(f => f !== data.primary_key));
+};
+
+      const getMysqlTypeIcon = (type: string) => {
         const lowerType = type.toLowerCase();
         if (lowerType.includes('int') || lowerType.includes('decimal') || lowerType.includes('float')) {
             return <Hash className="w-4 h-4" />;

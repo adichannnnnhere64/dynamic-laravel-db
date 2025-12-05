@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Head, router } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -93,14 +93,14 @@ export default function Index({
                         }}
                     />
                     <Button asChild>
-                        <a href={`/product/create?conn=${activeConnection.id}&table=${activeTable.id}`}>
+                        <Link href={`/product/create?conn=${activeConnection.id}&table=${activeTable.id}`}>
                             + Add New
-                        </a>
+                        </Link>
                     </Button>
                     <Button variant="outline" asChild>
-                        <a href={`/connect/${activeConnection.id}/tables`}>
+                        <Link href={`/connect/${activeConnection.id}/tables`}>
                             Manage Tables
-                        </a>
+                        </Link>
                     </Button>
                 </div>
 

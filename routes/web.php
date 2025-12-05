@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ValueObserverController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -39,6 +40,42 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/product/search', [ProductController::class, 'findProduct'])->name('product.search');
     Route::post('/product/update', [ProductController::class, 'updateProduct'])->name('product.update');
     Route::delete('/product/delete', [ProductController::class, 'deleteProduct'])->name('product.delete');
+
+
+      Route::prefix('value-observers')->name('value-observers.')->group(function () {
+        // List all observers
+        Route::get('/', [ValueObserverController::class, 'index'])->name('index');
+
+        // Create observer
+        Route::get('/create', [ValueObserverController::class, 'create'])->name('create');
+        Route::post('/', [ValueObserverController::class, 'store'])->name('store');
+
+        // View observer details
+        Route::get('/{observer}', [ValueObserverController::class, 'show'])->name('show');
+
+        // Edit observer
+        Route::get('/{observer}/edit', [ValueObserverController::class, 'edit'])->name('edit');
+        Route::put('/{observer}', [ValueObserverController::class, 'update'])->name('update');
+
+        // Delete observer
+        Route::delete('/{observer}', [ValueObserverController::class, 'destroy'])->name('destroy');
+
+        // Test observer (immediate check)
+        Route::post('/{observer}/test', [ValueObserverController::class, 'test'])->name('test');
+
+        // API endpoints
+        Route::get('/api/tables/{tableId}/fields', [ValueObserverController::class, 'getTableFields']);
+
+        // Observer logs (optional - for viewing logs separately)
+        Route::get('/{observer}/logs', function (App\Models\ValueObserver $observer) {
+            $logs = $observer->logs()->orderBy('created_at', 'desc')->paginate(50);
+            return Inertia::render('ValueObservers/Logs', [
+                'observer' => $observer,
+                'logs' => $logs,
+            ]);
+        })->name('logs');
+    });
+
 
     Route::delete('/product/bulk-delete', [ProductController::class, 'bulkDelete'])->name('product.bulkDelete');
 
