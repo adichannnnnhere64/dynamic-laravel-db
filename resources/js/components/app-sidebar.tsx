@@ -30,7 +30,7 @@ const footerNavItems: NavItem[] = [
     {
         title: 'Create new connection',
         href: '/connect',
-        icon: XIcon,
+        icon: Database,
     },
 
 ];
