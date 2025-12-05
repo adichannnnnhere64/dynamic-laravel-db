@@ -134,6 +134,11 @@ class ProductController extends Controller
         return back()->with('error', 'Fields not found: ' . implode(', ', $invalidFields));
     }
 
+        /* dd($table,$connectionId, ConnectionTable::where([ */
+        /*     'db_connection_id' => $connectionId, */
+        /*     'table_name' => $table */
+        /* ])->first()); */
+
     // Save table configuration
     ConnectionTable::updateOrCreate(
         [
@@ -454,6 +459,7 @@ public function getTableColumns($connectionId, $tableName)
     try {
         $dbConn = $this->db->connect($connection->connection_config);
         $columns = $dbConn->select("SHOW COLUMNS FROM {$tableName}");
+
 
         $columnNames = array_column($columns, 'Field');
 

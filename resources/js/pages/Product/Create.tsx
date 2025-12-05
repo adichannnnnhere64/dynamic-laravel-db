@@ -399,7 +399,7 @@ export default function ProductCreate({
                                             ) : (
                                                 <>
                                                     <Save className="w-4 h-4" />
-                                                    Create Product
+                                                    Create Item
                                                 </>
                                             )}
                                         </Button>

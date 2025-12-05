@@ -159,61 +159,75 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
     }, [selectedTableName]);
 
     const fetchColumns = async (tableName: string) => {
-        setLoadingColumns(true);
+    setLoadingColumns(true);
 
-        try {
-            const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
+    try {
+        const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        console.log('API Response for edit:', result);
+        console.log('Editing table input_types:', editingTable?.input_types);
+
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
+        if (result.columns && Array.isArray(result.columns)) {
+            const columnNames: string[] = result.columns.filter((col: string) => col && col.trim() !== '');
+            const typesMap: Record<string, string> = {};
+
+            if (result.types && Array.isArray(result.types)) {
+                columnNames.forEach((col: string, index: number) => {
+                    typesMap[col] = result.types[index] || 'varchar';
+                });
+            } else {
+                columnNames.forEach((col: string) => {
+                    typesMap[col] = 'varchar';
+                });
             }
 
-            const result = await response.json();
+            setColumns(columnNames);
+            setColumnTypes(typesMap);
 
-            console.log('API Response:', result);
+            // CRITICAL FIX: Preserve existing input_types when editing
+            let finalInputTypes: Record<string, string> = {};
 
-            if (result.error) {
-                throw new Error(result.error);
-            }
+            if (editingTable?.input_types) {
+                // Start with the saved input_types
+                finalInputTypes = { ...editingTable.input_types };
 
-            // FIX: Your API returns objects with column names in numeric keys
-            if (result.columns && Array.isArray(result.columns)) {
-                // Extract column names from the objects
-                const columnNames: string[] = [];
-                const typesMap: Record<string, string> = {};
+                // Only add defaults for NEW fields that don't exist in saved config
+                columnNames.forEach(col => {
+                    if (!finalInputTypes[col]) {
+                        const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
+                        let inputType = 'text';
 
-                result.columns.forEach((colObj: any) => {
-                    // The column name is in the numeric keys (0, 1, 2, etc.)
-                    // Convert numeric keys to string
-                    const charArray = [];
-                    for (let i = 0; i < Object.keys(colObj).length; i++) {
-                        if (colObj[i] !== undefined) {
-                            charArray.push(colObj[i]);
+                        if (mysqlType.includes('int') || mysqlType.includes('decimal') || mysqlType.includes('float') || mysqlType.includes('double')) {
+                            inputType = 'number';
+                        } else if (mysqlType.includes('date')) {
+                            inputType = 'date';
+                        } else if (mysqlType.includes('datetime') || mysqlType.includes('timestamp')) {
+                            inputType = 'datetime-local';
+                        } else if (mysqlType.includes('time')) {
+                            inputType = 'time';
+                        } else if (mysqlType.includes('text') || mysqlType.includes('blob')) {
+                            inputType = 'textarea';
+                        } else if (mysqlType.includes('enum')) {
+                            inputType = 'select';
+                        } else if (mysqlType.includes('set') || mysqlType === 'tinyint(1)' || mysqlType.includes('boolean')) {
+                            inputType = 'checkbox';
                         }
-                    }
-                    const columnName = charArray.join('');
 
-                    if (columnName && columnName.trim() !== '') {
-                        columnNames.push(columnName);
-
-                        // Get type from result.types array
-                        const typeIndex = result.columns.indexOf(colObj);
-                        const columnType = result.types && result.types[typeIndex] ? result.types[typeIndex] : 'varchar';
-                        typesMap[columnName] = columnType;
+                        finalInputTypes[col] = inputType;
                     }
                 });
-
-                setColumns(columnNames);
-                setColumnTypes(typesMap);
-
-                console.log('Processed columns:', columnNames);
-                console.log('Processed types:', typesMap);
-
-                // Set initial data
-                const primaryKey = columnNames[0] || 'id';
-
-                // Generate default input types
-                const generatedInputTypes: Record<string, string> = {};
+            } else {
+                // Generate all defaults if not editing
                 columnNames.forEach((col: string) => {
                     const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
                     let inputType = 'text';
@@ -234,30 +248,35 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
                         inputType = 'checkbox';
                     }
 
-                    generatedInputTypes[col] = inputType;
+                    finalInputTypes[col] = inputType;
                 });
-
-                setData({
-                    ...data,
-                    table_name: tableName,
-                    name: editingTable?.name || tableName,
-                    primary_key: editingTable?.primary_key || primaryKey,
-                    fields: editingTable?.fields || columnNames,
-                    editable_fields: editingTable?.editable_fields || columnNames.filter(f => f !== primaryKey),
-                    input_types: editingTable?.input_types || generatedInputTypes,
-                });
-            } else {
-                throw new Error('No columns found in response');
             }
-        } catch (error: any) {
-            console.error("Failed to fetch columns:", error);
-            toast.error("Connection Error", {
-                description: "Could not fetch table structure from database",
+
+            const primaryKey = editingTable?.primary_key || columnNames[0] || 'id';
+
+            console.log('Final input types to set:', finalInputTypes);
+
+            setData({
+                ...data,
+                table_name: tableName,
+                name: editingTable?.name || tableName,
+                primary_key: editingTable?.primary_key || primaryKey,
+                fields: editingTable?.fields || columnNames,
+                editable_fields: editingTable?.editable_fields || columnNames.filter(f => f !== primaryKey),
+                input_types: finalInputTypes, // Use the preserved/merged input types
             });
-        } finally {
-            setLoadingColumns(false);
+        } else {
+            throw new Error('No columns found in response');
         }
-    };
+    } catch (error: any) {
+        console.error("Failed to fetch columns:", error);
+        toast.error("Connection Error", {
+            description: "Could not fetch table structure from database",
+        });
+    } finally {
+        setLoadingColumns(false);
+    }
+};
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -305,25 +324,115 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
         });
     };
 
-    const editTable = (table: TableConfig) => {
-        setEditingTable(table);
-        setShowForm(true);
-        setSelectedTableName(table.table_name);
-        setData({
-            table_name: table.table_name,
-            name: table.name,
-            primary_key: table.primary_key,
-            fields: table.fields,
-            editable_fields: table.editable_fields || [],
-            input_types: table.input_types || {},
-            is_active: table.is_active,
-            order: table.order,
-        });
+    const editTable = async (table: TableConfig) => {
+    console.log('Editing table:', table);
+    console.log('Table input_types:', table.input_types);
 
-        if (columns.length === 0 || columns[0] !== table.fields[0]) {
-            fetchColumns(table.table_name);
+    setEditingTable(table);
+    setShowForm(true);
+    setSelectedTableName(table.table_name);
+
+    // Set initial data IMMEDIATELY with saved configuration
+    setData({
+        table_name: table.table_name,
+        name: table.name,
+        primary_key: table.primary_key,
+        fields: table.fields,
+        editable_fields: table.editable_fields || [],
+        input_types: table.input_types || {},
+        is_active: table.is_active,
+        order: table.order,
+    });
+
+    // Now fetch columns and merge with saved input_types
+    await fetchColumnsForEdit(table.table_name, table.input_types || {});
+};
+
+// New function specifically for editing
+const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<string, string>) => {
+    setLoadingColumns(true);
+
+    try {
+        const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    };
+
+        const result = await response.json();
+
+        console.log('API Response for edit:', result);
+        console.log('Saved input_types:', savedInputTypes);
+
+        if (result.error) {
+            throw new Error(result.error);
+        }
+
+        if (result.columns && Array.isArray(result.columns)) {
+            const columnNames: string[] = result.columns.filter((col: string) => col && col.trim() !== '');
+            const typesMap: Record<string, string> = {};
+
+            if (result.types && Array.isArray(result.types)) {
+                columnNames.forEach((col: string, index: number) => {
+                    typesMap[col] = result.types[index] || 'varchar';
+                });
+            } else {
+                columnNames.forEach((col: string) => {
+                    typesMap[col] = 'varchar';
+                });
+            }
+
+            setColumns(columnNames);
+            setColumnTypes(typesMap);
+
+            // Merge saved input_types with defaults for new columns
+            const finalInputTypes: Record<string, string> = { ...savedInputTypes };
+
+            // Add defaults for NEW fields that don't exist in saved config
+            columnNames.forEach(col => {
+                if (!finalInputTypes[col]) {
+                    const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
+                    let inputType = 'text';
+
+                    if (mysqlType.includes('int') || mysqlType.includes('decimal') || mysqlType.includes('float') || mysqlType.includes('double')) {
+                        inputType = 'number';
+                    } else if (mysqlType.includes('date')) {
+                        inputType = 'date';
+                    } else if (mysqlType.includes('datetime') || mysqlType.includes('timestamp')) {
+                        inputType = 'datetime-local';
+                    } else if (mysqlType.includes('time')) {
+                        inputType = 'time';
+                    } else if (mysqlType.includes('text') || mysqlType.includes('blob')) {
+                        inputType = 'textarea';
+                    } else if (mysqlType.includes('enum')) {
+                        inputType = 'select';
+                    } else if (mysqlType.includes('set') || mysqlType === 'tinyint(1)' || mysqlType.includes('boolean')) {
+                        inputType = 'checkbox';
+                    }
+
+                    finalInputTypes[col] = inputType;
+                }
+            });
+
+            console.log('Final input types to set:', finalInputTypes);
+
+            // Update form data with merged input_types
+            setData(prev => ({
+                ...prev,
+                fields: columnNames,
+                input_types: finalInputTypes,
+            }));
+        }
+    } catch (error: any) {
+        console.error("Failed to fetch columns:", error);
+        toast.error("Connection Error", {
+            description: "Could not fetch table structure from database",
+        });
+    } finally {
+        setLoadingColumns(false);
+    }
+};
+
 
     const deleteTable = (tableId: number) => {
         router.delete(`/connect/${connection.id}/tables/${tableId}`, {
@@ -465,10 +574,7 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
 
                                 <Dialog open={showForm} onOpenChange={setShowForm}>
                                     <DialogTrigger asChild>
-                                        <Button className="gap-2">
-                                            <Plus className="w-4 h-4" />
-                                            Add Table
-                                        </Button>
+
                                     </DialogTrigger>
                                     <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                                         <DialogHeader>
