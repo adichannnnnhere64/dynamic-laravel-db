@@ -17,6 +17,8 @@ class ValueObserver extends Model
         'string_value',
         'is_active',
         'notification_emails',
+        'telegram_chat_ids',
+        'telegram_bot_token',
         'notification_subject',
         'notification_message',
         'check_interval_minutes',
@@ -27,6 +29,7 @@ class ValueObserver extends Model
 
     protected $casts = [
         'notification_emails' => 'array',
+        'telegram_chat_ids' => 'array',
         'threshold_value' => 'decimal:4',
         'is_active' => 'boolean',
         'last_checked_at' => 'datetime',
@@ -43,7 +46,6 @@ class ValueObserver extends Model
         return $this->hasMany(ValueObserverLog::class);
     }
 
-    // Helper methods
     public function getConditionDescription(): string
     {
         $conditions = [
@@ -51,7 +53,6 @@ class ValueObserver extends Model
             'greater_than' => 'Greater than',
             'equals' => 'Equals',
             'not_equals' => 'Not equals',
-            'changes' => 'Changes',
             'contains' => 'Contains',
             'starts_with' => 'Starts with',
             'ends_with' => 'Ends with',
@@ -63,8 +64,6 @@ class ValueObserver extends Model
             return "{$condition} {$this->threshold_value}";
         } elseif (in_array($this->condition_type, ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with']) && $this->string_value !== null) {
             return "{$condition} '{$this->string_value}'";
-        } elseif ($this->condition_type === 'changes') {
-            return 'When value changes';
         }
 
         return $condition;
@@ -81,5 +80,20 @@ class ValueObserver extends Model
         }
 
         return $this->last_checked_at->addMinutes($this->check_interval_minutes)->isPast();
+    }
+
+    public function hasTelegramNotifications(): bool
+    {
+        return !empty($this->telegram_chat_ids) && !empty($this->telegram_bot_token);
+    }
+
+    public function hasEmailNotifications(): bool
+    {
+        return !empty($this->notification_emails);
+    }
+
+    public function hasAnyNotifications(): bool
+    {
+        return $this->hasEmailNotifications() || $this->hasTelegramNotifications();
     }
 }

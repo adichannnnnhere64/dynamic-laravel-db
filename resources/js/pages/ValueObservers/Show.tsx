@@ -31,6 +31,7 @@ import {
     Database,
     Edit,
     Mail,
+    MessageSquare,
     RefreshCw,
     Trash2
 } from 'lucide-react';
@@ -114,6 +115,9 @@ export default function ValueObserversShow({ observer }: Props) {
             router.post(`/value-observers/${observer.id}/test`);
         }
     };
+
+    const hasTelegramNotifications = observer.telegram_bot_token && observer.telegram_chat_ids?.length > 0;
+const hasEmailNotifications = observer.notification_emails?.length > 0;
 
     return (
         <AppLayout>
@@ -269,6 +273,8 @@ export default function ValueObserversShow({ observer }: Props) {
                                             </div>
                                         </div>
 
+
+
                                         <div>
                                             <h4 className="text-sm font-medium text-gray-500 mb-2">Email Subject</h4>
                                             <p className="font-mono text-sm bg-gray-50 dark:bg-black p-2 rounded">
@@ -283,9 +289,36 @@ export default function ValueObserversShow({ observer }: Props) {
                                             </div>
                                         </div>
                                     </div>
+
+                        {/* Add this section after the Email notification section */}
+{observer?.telegram_bot_token && observer?.telegram_chat_ids?.length > 0 && (
+    <div className="mt-4 pt-4 border-t">
+
+        <h4 className="text-sm font-medium text-gray-500 mb-2">Telegram Notifications</h4>
+        <div className="space-y-2">
+            <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-green-600" />
+                <span className="text-sm">Bot token configured</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Chat IDs:</span>
+                <div className="flex flex-wrap gap-1">
+                    {observer?.telegram_chat_ids.map((chatId, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                            {chatId}
+                        </Badge>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </div>
+)}
+
+
                                 </CardContent>
                             </Card>
                         </div>
+
 
                         {/* Right Column - Stats & Actions */}
                         <div className="space-y-6">
@@ -302,6 +335,10 @@ export default function ValueObserversShow({ observer }: Props) {
                                             </div>
                                             <div className="text-sm text-gray-600">Total Triggers</div>
                                         </div>
+
+                                        <Card>
+
+</Card>
 
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="text-center">
@@ -347,7 +384,7 @@ export default function ValueObserversShow({ observer }: Props) {
                                                     key={log.id}
                                                     className={`p-3 rounded border ${
                                                         log.condition_met
-                                                            ? 'bg-red-50 border-red-200'
+                                                            ? 'bg-red-50 dark:text-black border-red-200'
                                                             : 'bg-gray-50 dark:bg-black border-gray-200'
                                                     }`}
                                                 >

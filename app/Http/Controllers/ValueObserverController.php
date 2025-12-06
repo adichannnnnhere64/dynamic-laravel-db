@@ -17,9 +17,6 @@ class ValueObserverController extends Controller
         $this->observerService = $observerService;
     }
 
-    /**
-     * Display a listing of observers
-     */
     public function index(Request $request)
     {
         $observers = ValueObserver::with(['connectionTable.connection'])
@@ -46,9 +43,6 @@ class ValueObserverController extends Controller
         ]);
     }
 
-    /**
-     * Show form to create new observer
-     */
     public function create(Request $request)
     {
         $connections = auth()->user()->dbConnections()->with('tables')->get();
@@ -66,7 +60,6 @@ class ValueObserverController extends Controller
             $selectedConnection = $selectedTable->connection;
         }
 
-        // Get table fields for the selected table
         $fields = $selectedTable ? $selectedTable->fields : [];
 
         return Inertia::render('ValueObservers/Create', [
@@ -77,10 +70,50 @@ class ValueObserverController extends Controller
         ]);
     }
 
-    /**
-     * Store a new observer
-     */
-    public function store(Request $request)
+
+    public function show(ValueObserver $observer)
+{
+    $observer->load(['connectionTable.connection', 'logs' => function ($query) {
+        $query->orderBy('created_at', 'desc')->limit(50);
+    }]);
+
+    // Add helper properties
+    $observerArray = $observer->toArray();
+    $observerArray['has_telegram_notifications'] = $observer->hasTelegramNotifications();
+    $observerArray['has_email_notifications'] = $observer->hasEmailNotifications();
+    $observerArray['has_any_notifications'] = $observer->hasAnyNotifications();
+
+    return Inertia::render('ValueObservers/Show', [
+        'observer' => $observerArray,
+    ]);
+}
+
+
+        public function edit(ValueObserver $observer)
+    {
+        $observer->load('connectionTable.connection');
+        $connections = auth()->user()->dbConnections()->with('tables')->get();
+
+        $selectedConnection = $observer->connectionTable->connection;
+        $selectedTable = $observer->connectionTable;
+
+        // Add helper properties to the observer for the frontend
+        $observerArray = $observer->toArray();
+        $observerArray['has_telegram_notifications'] = $observer->hasTelegramNotifications();
+        $observerArray['has_email_notifications'] = $observer->hasEmailNotifications();
+        $observerArray['has_any_notifications'] = $observer->hasAnyNotifications();
+
+        return Inertia::render('ValueObservers/Edit', [
+            'observer' => $observerArray,
+            'connections' => $connections,
+            'selectedConnection' => $selectedConnection,
+            'selectedTable' => $selectedTable,
+            'fields' => $selectedTable->fields,
+        ]);
+    }
+
+
+        public function store(Request $request)
     {
         $request->validate([
             'connection_table_id' => 'required|exists:connection_tables,id',
@@ -90,12 +123,34 @@ class ValueObserverController extends Controller
             'threshold_value' => 'nullable|numeric',
             'string_value' => 'nullable|string|max:255',
             'is_active' => 'boolean',
-            'notification_emails' => 'required|array|min:1',
-            'notification_emails.*' => 'email',
+            'notification_emails' => 'nullable|array',
+            'notification_emails.*' => 'nullable|email',
+            'telegram_chat_ids' => 'nullable|array',
+            'telegram_chat_ids.*' => 'nullable|string',
+            'telegram_bot_token' => 'nullable|string|max:255',
             'notification_subject' => 'required|string|max:255',
             'notification_message' => 'required|string',
             'check_interval_minutes' => 'required|integer|min:1|max:1440',
         ]);
+
+        // Clean up empty values from arrays
+        $notificationEmails = array_filter($request->notification_emails ?? [], function($email) {
+            return !empty($email) && trim($email) !== '';
+        });
+
+        $telegramChatIds = array_filter($request->telegram_chat_ids ?? [], function($chatId) {
+            return !empty($chatId) && trim($chatId) !== '';
+        });
+
+        // Validate that at least one notification method is provided
+        $hasEmailNotifications = !empty($notificationEmails);
+        $hasTelegramNotifications = !empty($telegramChatIds) && !empty(trim($request->telegram_bot_token ?? ''));
+
+        if (!$hasEmailNotifications && !$hasTelegramNotifications) {
+            return back()->withErrors([
+                'notification_method' => 'Please provide at least one notification method (email or Telegram).',
+            ]);
+        }
 
         $observer = ValueObserver::create([
             'connection_table_id' => $request->connection_table_id,
@@ -105,7 +160,9 @@ class ValueObserverController extends Controller
             'threshold_value' => $request->threshold_value,
             'string_value' => $request->string_value,
             'is_active' => $request->is_active ?? true,
-            'notification_emails' => $request->notification_emails,
+            'notification_emails' => $notificationEmails,
+            'telegram_chat_ids' => $telegramChatIds,
+            'telegram_bot_token' => $request->telegram_bot_token ? trim($request->telegram_bot_token) : null,
             'notification_subject' => $request->notification_subject,
             'notification_message' => $request->notification_message,
             'check_interval_minutes' => $request->check_interval_minutes,
@@ -115,43 +172,6 @@ class ValueObserverController extends Controller
             ->with('success', 'Value observer created successfully!');
     }
 
-    /**
-     * Show observer details
-     */
-    public function show(ValueObserver $observer)
-    {
-        $observer->load(['connectionTable.connection', 'logs' => function ($query) {
-            $query->orderBy('created_at', 'desc')->limit(50);
-        }]);
-
-        return Inertia::render('ValueObservers/Show', [
-            'observer' => $observer,
-        ]);
-    }
-
-    /**
-     * Edit observer
-     */
-    public function edit(ValueObserver $observer)
-    {
-        $observer->load('connectionTable.connection');
-        $connections = auth()->user()->dbConnections()->with('tables')->get();
-
-        $selectedConnection = $observer->connectionTable->connection;
-        $selectedTable = $observer->connectionTable;
-
-        return Inertia::render('ValueObservers/Edit', [
-            'observer' => $observer,
-            'connections' => $connections,
-            'selectedConnection' => $selectedConnection,
-            'selectedTable' => $selectedTable,
-            'fields' => $selectedTable->fields,
-        ]);
-    }
-
-    /**
-     * Update observer
-     */
     public function update(Request $request, ValueObserver $observer)
     {
         $request->validate([
@@ -161,22 +181,55 @@ class ValueObserverController extends Controller
             'threshold_value' => 'nullable|numeric',
             'string_value' => 'nullable|string|max:255',
             'is_active' => 'boolean',
-            'notification_emails' => 'required|array|min:1',
-            'notification_emails.*' => 'email',
+            'notification_emails' => 'nullable|array',
+            'notification_emails.*' => 'nullable|email',
+            'telegram_chat_ids' => 'nullable|array',
+            'telegram_chat_ids.*' => 'nullable|string',
+            'telegram_bot_token' => 'nullable|string|max:255',
             'notification_subject' => 'required|string|max:255',
             'notification_message' => 'required|string',
             'check_interval_minutes' => 'required|integer|min:1|max:1440',
         ]);
 
-        $observer->update($request->all());
+        // Clean up empty values from arrays
+        $notificationEmails = array_filter($request->notification_emails ?? [], function($email) {
+            return !empty($email) && trim($email) !== '';
+        });
+
+        $telegramChatIds = array_filter($request->telegram_chat_ids ?? [], function($chatId) {
+            return !empty($chatId) && trim($chatId) !== '';
+        });
+
+        // Validate that at least one notification method is provided
+        $hasEmailNotifications = !empty($notificationEmails);
+        $hasTelegramNotifications = !empty($telegramChatIds) && !empty(trim($request->telegram_bot_token ?? ''));
+
+        if (!$hasEmailNotifications && !$hasTelegramNotifications) {
+            return back()->withErrors([
+                'notification_method' => 'Please provide at least one notification method (email or Telegram).',
+            ]);
+        }
+
+        $observer->update([
+            'name' => $request->name,
+            'field_to_watch' => $request->field_to_watch,
+            'condition_type' => $request->condition_type,
+            'threshold_value' => $request->threshold_value,
+            'string_value' => $request->string_value,
+            'is_active' => $request->is_active ?? true,
+            'notification_emails' => $notificationEmails,
+            'telegram_chat_ids' => $telegramChatIds,
+            'telegram_bot_token' => $request->telegram_bot_token ? trim($request->telegram_bot_token) : null,
+            'notification_subject' => $request->notification_subject,
+            'notification_message' => $request->notification_message,
+            'check_interval_minutes' => $request->check_interval_minutes,
+        ]);
 
         return redirect()->route('value-observers.show', $observer)
             ->with('success', 'Value observer updated successfully!');
     }
 
-    /**
-     * Delete observer
-     */
+
     public function destroy(ValueObserver $observer)
     {
         $observer->delete();
@@ -185,9 +238,6 @@ class ValueObserverController extends Controller
             ->with('success', 'Value observer deleted successfully!');
     }
 
-    /**
-     * Test observer immediately
-     */
     public function test(ValueObserver $observer)
     {
         $results = $this->observerService->testObserver($observer);
@@ -200,9 +250,16 @@ class ValueObserverController extends Controller
         ]);
     }
 
-    /**
-     * Get fields for a table
-     */
+    public function testNotification(ValueObserver $observer)
+    {
+        $results = $this->observerService->testNotification($observer);
+
+        return response()->json([
+            'success' => true,
+            'results' => $results,
+        ]);
+    }
+
     public function getTableFields($tableId)
     {
         $table = ConnectionTable::findOrFail($tableId);

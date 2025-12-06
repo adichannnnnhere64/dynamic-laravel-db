@@ -26,6 +26,11 @@ class ValueObserverLog extends Model
         'sent_at' => 'datetime',
     ];
 
+    public function getCurrentValueAttribute($value)
+    {
+        return round($value);
+    }
+
     public function observer()
     {
         return $this->belongsTo(ValueObserver::class, 'value_observer_id');

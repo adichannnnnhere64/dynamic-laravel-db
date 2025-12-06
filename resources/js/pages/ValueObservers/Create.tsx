@@ -38,12 +38,19 @@ import {
     Switch
 } from '@/components/ui/switch';
 import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger
+} from '@/components/ui/tabs';
+import {
     AlertCircle,
     Bell,
     ChevronLeft,
     Database,
     Grid3x3,
     Mail,
+    MessageSquare,
     Plus,
     Save,
     X
@@ -68,6 +75,7 @@ export default function ValueObserversCreate({
     const [tableId, setTableId] = useState(selectedTable?.id?.toString() || '');
     const [availableTables, setAvailableTables] = useState<any[]>([]);
     const [availableFields, setAvailableFields] = useState<string[]>(fields || []);
+    const [notificationTab, setNotificationTab] = useState('email');
 
     const { data, setData, post, processing, errors } = useForm({
         connection_table_id: tableId ? parseInt(tableId) : '',
@@ -78,32 +86,30 @@ export default function ValueObserversCreate({
         string_value: '',
         is_active: true,
         notification_emails: [''],
+        telegram_chat_ids: [''],
+        telegram_bot_token: '',
         notification_subject: 'Database Alert: {observer_name}',
         notification_message: 'The condition "{condition}" has been met for field "{field}" in table "{table_name}". Current value: {current_value}',
         check_interval_minutes: 60,
     });
 
-    // Update available tables when connection changes
     useEffect(() => {
         if (connectionId) {
             const connection = connections.find(c => c.id.toString() === connectionId);
             setAvailableTables(connection?.tables || []);
 
-            // Reset table selection
             setTableId('');
             setData('connection_table_id', '');
             setAvailableFields([]);
         }
     }, [connectionId]);
 
-    // Update fields when table changes
     useEffect(() => {
         if (tableId) {
             const table = availableTables.find(t => t.id.toString() === tableId);
             setAvailableFields(table?.fields || []);
             setData('connection_table_id', parseInt(tableId));
 
-            // Auto-select first field
             if (table?.fields?.length > 0 && !data.field_to_watch) {
                 setData('field_to_watch', table.fields[0]);
             }
@@ -113,10 +119,17 @@ export default function ValueObserversCreate({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Filter out empty emails
+        // Filter out empty values
         const validEmails = data.notification_emails.filter(email => email && email.trim() !== '');
-        if (validEmails.length === 0) {
-            toast.error('At least one notification email is required');
+        const validTelegramIds = data.telegram_chat_ids.filter(id => id && id.trim() !== '');
+
+        const hasEmailNotifications = validEmails.length > 0;
+        const hasTelegramNotifications = validTelegramIds.length > 0 && data.telegram_bot_token.trim() !== '';
+
+        if (!hasEmailNotifications && !hasTelegramNotifications) {
+            toast.error('Configuration Error', {
+                description: 'Please provide at least one notification method (email or Telegram)'
+            });
             return;
         }
 
@@ -150,6 +163,23 @@ export default function ValueObserversCreate({
         const newEmails = [...data.notification_emails];
         newEmails[index] = value;
         setData('notification_emails', newEmails);
+    };
+
+    const addTelegramIdField = () => {
+        setData('telegram_chat_ids', [...data.telegram_chat_ids, '']);
+    };
+
+    const removeTelegramIdField = (index: number) => {
+        if (data.telegram_chat_ids.length > 1) {
+            const newIds = data.telegram_chat_ids.filter((_, i) => i !== index);
+            setData('telegram_chat_ids', newIds);
+        }
+    };
+
+    const updateTelegramId = (index: number, value: string) => {
+        const newIds = [...data.telegram_chat_ids];
+        newIds[index] = value;
+        setData('telegram_chat_ids', newIds);
     };
 
     const conditionTypes = [
@@ -410,84 +440,186 @@ export default function ValueObserversCreate({
                                 {/* Step 3: Notification Settings */}
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                                        <Mail className="w-5 h-5" />
+                                        <Bell className="w-5 h-5" />
                                         Step 3: Notification Settings
                                     </h3>
 
-                                    <div className="space-y-4">
-                                        <div>
-                                            <Label>Notification Emails</Label>
-                                            <div className="space-y-3 mt-2">
-                                                {data.notification_emails.map((email, index) => (
-                                                    <div key={index} className="flex gap-2">
-                                                        <Input
-                                                            type="email"
-                                                            value={email}
-                                                            onChange={e => updateEmail(index, e.target.value)}
-                                                            placeholder="email@example.com"
-                                                            required={index === 0}
-                                                        />
-                                                        {data.notification_emails.length > 1 && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="icon"
-                                                                onClick={() => removeEmailField(index)}
-                                                            >
-                                                                <X className="w-4 h-4" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                    <Tabs value={notificationTab} onValueChange={setNotificationTab}>
+                                        <TabsList className="grid grid-cols-2 mb-6">
+                                            <TabsTrigger value="email" className="gap-2">
+                                                <Mail className="w-4 h-4" />
+                                                Email Notifications
+                                            </TabsTrigger>
+                                            <TabsTrigger value="telegram" className="gap-2">
+                                                <MessageSquare className="w-4 h-4" />
+                                                Telegram Notifications
+                                            </TabsTrigger>
+                                        </TabsList>
+
+                                        <TabsContent value="email" className="space-y-6">
+                                            <div>
+                                                <Label>Email Recipients</Label>
+                                                <div className="space-y-3 mt-2">
+                                                    {data.notification_emails.map((email, index) => (
+                                                        <div key={index} className="flex gap-2">
+                                                            <Input
+                                                                type="email"
+                                                                value={email}
+                                                                onChange={e => updateEmail(index, e.target.value)}
+                                                                placeholder="email@example.com"
+                                                                required={index === 0}
+                                                            />
+                                                            {data.notification_emails.length > 1 && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    onClick={() => removeEmailField(index)}
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={addEmailField}
+                                                    className="mt-2"
+                                                >
+                                                    <Plus className="w-4 h-4 mr-2" />
+                                                    Add Another Email
+                                                </Button>
+                                                {errors.notification_emails && (
+                                                    <p className="text-sm text-red-600">{errors.notification_emails}</p>
+                                                )}
                                             </div>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={addEmailField}
-                                                className="mt-2"
-                                            >
-                                                <Plus className="w-4 h-4 mr-2" />
-                                                Add Another Email
-                                            </Button>
-                                            {errors.notification_emails && (
-                                                <p className="text-sm text-red-600">{errors.notification_emails}</p>
-                                            )}
-                                        </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="notification_subject">Email Subject</Label>
-                                            <Input
-                                                id="notification_subject"
-                                                value={data.notification_subject}
-                                                onChange={e => setData('notification_subject', e.target.value)}
-                                                placeholder="Alert: {observer_name}"
-                                                required
-                                            />
-                                            <p className="text-xs text-gray-500">
-                                                Available variables: {'{observer_name}'}, {'{table_name}'}, {'{field}'}, {'{condition}'}
-                                            </p>
-                                            {errors.notification_subject && (
-                                                <p className="text-sm text-red-600">{errors.notification_subject}</p>
-                                            )}
-                                        </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="notification_subject">Email Subject</Label>
+                                                <Input
+                                                    id="notification_subject"
+                                                    value={data.notification_subject}
+                                                    onChange={e => setData('notification_subject', e.target.value)}
+                                                    placeholder="Alert: {observer_name}"
+                                                    required
+                                                />
+                                                <p className="text-xs text-gray-500">
+                                                    Available variables: {'{observer_name}'}, {'{table_name}'}, {'{field}'}, {'{condition}'}
+                                                </p>
+                                                {errors.notification_subject && (
+                                                    <p className="text-sm text-red-600">{errors.notification_subject}</p>
+                                                )}
+                                            </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="notification_message">Email Message</Label>
-                                            <Textarea
-                                                id="notification_message"
-                                                value={data.notification_message}
-                                                onChange={e => setData('notification_message', e.target.value)}
-                                                rows={4}
-                                                required
-                                            />
-                                            <p className="text-xs text-gray-500">
-                                                Available variables: {'{observer_name}'}, {'{table_name}'}, {'{field}'}, {'{condition}'}, {'{current_value}'}, {'{record_id}'}
-                                            </p>
-                                            {errors.notification_message && (
-                                                <p className="text-sm text-red-600">{errors.notification_message}</p>
-                                            )}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="notification_message">Email Message</Label>
+                                                <Textarea
+                                                    id="notification_message"
+                                                    value={data.notification_message}
+                                                    onChange={e => setData('notification_message', e.target.value)}
+                                                    rows={4}
+                                                    required
+                                                />
+                                                <p className="text-xs text-gray-500">
+                                                    Available variables: {'{observer_name}'}, {'{table_name}'}, {'{field}'}, {'{condition}'}, {'{current_value}'}, {'{record_id}'}
+                                                </p>
+                                                {errors.notification_message && (
+                                                    <p className="text-sm text-red-600">{errors.notification_message}</p>
+                                                )}
+                                            </div>
+                                        </TabsContent>
+
+                                        <TabsContent value="telegram" className="space-y-6">
+                                            <div>
+                                                <Label htmlFor="telegram_bot_token">Telegram Bot Token</Label>
+                                                <Input
+                                                    id="telegram_bot_token"
+                                                    type="password"
+                                                    value={data.telegram_bot_token}
+                                                    onChange={e => setData('telegram_bot_token', e.target.value)}
+                                                    placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Get your bot token from @BotFather on Telegram
+                                                </p>
+                                                {errors.telegram_bot_token && (
+                                                    <p className="text-sm text-red-600">{errors.telegram_bot_token}</p>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <Label>Telegram Chat IDs</Label>
+                                                <div className="space-y-3 mt-2">
+                                                    {data.telegram_chat_ids.map((chatId, index) => (
+                                                        <div key={index} className="flex gap-2">
+                                                            <Input
+                                                                value={chatId}
+                                                                onChange={e => updateTelegramId(index, e.target.value)}
+                                                                placeholder="123456789"
+                                                                required={index === 0 && notificationTab === 'telegram'}
+                                                            />
+                                                            {data.telegram_chat_ids.length > 1 && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    onClick={() => removeTelegramIdField(index)}
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={addTelegramIdField}
+                                                    className="mt-2"
+                                                >
+                                                    <Plus className="w-4 h-4 mr-2" />
+                                                    Add Another Chat ID
+                                                </Button>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Users need to start a chat with your bot first, then share their chat ID
+                                                </p>
+                                                {errors.telegram_chat_ids && (
+                                                    <p className="text-sm text-red-600">{errors.telegram_chat_ids}</p>
+                                                )}
+                                            </div>
+
+                                            <Card className="dark:bg-black ">
+                                                <CardContent className="pt-6">
+                                                    <h4 className="font-semibold dark:text-white mb-2">Telegram Message Preview</h4>
+                                                    <p className="text-sm dark:text-white mb-2">
+                                                        Alerts will be sent in this format:
+                                                    </p>
+                                                    <div className="text-sm dark:bg-black bg-white p-3 rounded border">
+                                                        <p>⚠️ <strong>Database Value Alert</strong></p>
+                                                        <p>🔍 <strong>Observer:</strong> {data.name || 'Observer Name'}</p>
+                                                        <p>📊 <strong>Table:</strong> {selectedTable?.name || 'Table Name'}</p>
+                                                        <p>🎯 <strong>Field:</strong> {data.field_to_watch || 'field_name'}</p>
+                                                        <p>📝 <strong>Condition:</strong> {data.condition_type?.replace('_', ' ')} {data.threshold_value || data.string_value}</p>
+                                                        <p>📈 <strong>Current Value:</strong> [value]</p>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        </TabsContent>
+                                    </Tabs>
+
+                                    <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+                                        <div className="flex items-center gap-2 text-yellow-800">
+                                            <AlertCircle className="w-5 h-5" />
+                                            <p className="text-sm font-medium">Notification Method</p>
                                         </div>
+                                        <p className="text-sm text-yellow-700 mt-1">
+                                            You can configure both email and Telegram notifications, or just one.
+                                            At least one notification method is required.
+                                        </p>
                                     </div>
                                 </div>
 
@@ -580,8 +712,6 @@ export default function ValueObserversCreate({
                             </form>
                         </CardContent>
                     </Card>
-
-                    {/* Help Info */}
                 </div>
             </div>
         </AppLayout>

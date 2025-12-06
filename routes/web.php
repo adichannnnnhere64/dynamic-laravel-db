@@ -57,6 +57,13 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{observer}/edit', [ValueObserverController::class, 'edit'])->name('edit');
         Route::put('/{observer}', [ValueObserverController::class, 'update'])->name('update');
 
+        Route::middleware(['auth', 'verified'])->group(function () {
+    // ... other routes
+
+    Route::post('value-observers/{observer}/test-notification', [ValueObserverController::class, 'testNotification'])
+        ->name('value-observers.test-notification');
+});
+
         // Delete observer
         Route::delete('/{observer}', [ValueObserverController::class, 'destroy'])->name('destroy');
 
