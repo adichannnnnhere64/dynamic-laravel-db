@@ -105,9 +105,9 @@ export default function Index({
                 </div>
 
                 {/* Products Table */}
-                <div className="bg-white rounded shadow overflow-x-auto">
+                <div className="bg-white dark:bg-black rounded shadow overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 dark:bg-black">
                             <tr>
                                 {fields.map((f: string) => (
                                     <th key={f} className="px-4 py-3 text-left">{f}</th>
@@ -150,7 +150,7 @@ export default function Index({
                                     className={`px-3 py-1 rounded ${
                                         link.active
                                             ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 hover:bg-gray-200'
                                     }`}
                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                 />

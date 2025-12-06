@@ -104,7 +104,7 @@ export default function ValueObserversIndex({ observers, connections, filters }:
             ends_with: { label: 'Ends with', color: 'bg-indigo-100 text-indigo-800' },
         };
 
-        const condition = conditions[observer.condition_type] || { label: observer.condition_type, color: 'bg-gray-100 text-gray-800' };
+        const condition = conditions[observer.condition_type] || { label: observer.condition_type, color: 'bg-gray-100 dark:bg-gray-800 text-gray-800' };
 
         return (
             <Badge className={condition.color}>
@@ -137,9 +137,9 @@ export default function ValueObserversIndex({ observers, connections, filters }:
         <AppLayout>
             <Head title="Value Observers" />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -148,7 +148,7 @@ export default function ValueObserversIndex({ observers, connections, filters }:
                                         <Bell className="w-6 h-6 text-purple-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">Value Observers</h1>
+                                        <h1 className="text-2xl font-bold text-white">Value Observers</h1>
                                         <p className="text-sm text-gray-600">
                                             Monitor database values and get alerts
                                         </p>
@@ -252,7 +252,7 @@ export default function ValueObserversIndex({ observers, connections, filters }:
                                         </TableHeader>
                                         <TableBody>
                                             {observers.data.map(observer => (
-                                                <TableRow key={observer.id} className="hover:bg-gray-50">
+                                                <TableRow key={observer.id} className="hover:bg-gray-50 dark:bg-black">
                                                     <TableCell>
                                                         <Badge variant={observer.is_active ? "default" : "secondary"}>
                                                             {observer.is_active ? 'Active' : 'Inactive'}
@@ -331,7 +331,7 @@ export default function ValueObserversIndex({ observers, connections, filters }:
                                 </div>
                             ) : (
                                 <div className="text-center py-12">
-                                    <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                    <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
                                         <AlertCircle className="w-8 h-8 text-gray-400" />
                                     </div>
                                     <h3 className="text-lg font-semibold mb-2">No observers configured</h3>

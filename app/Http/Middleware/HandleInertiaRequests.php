@@ -39,9 +39,9 @@ class HandleInertiaRequests extends Middleware
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
 
-        $connections = auth()->user()->dbConnections()->with('tables', 'tables.connection')->get();
+        $connections = auth()->user()?->dbConnections()->with('tables', 'tables.connection')->get();
 
-        $tables = $connections->map->tables->flatten();
+        $tables = $connections?->map->tables->flatten();
 
         return [
             ...parent::share($request),

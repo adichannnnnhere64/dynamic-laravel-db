@@ -257,7 +257,7 @@ export default function ValueObserversEdit({
             );
         }
         return (
-            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+            <Badge variant="outline" className="bg-gray-50 dark:bg-black text-gray-700 border-gray-200">
                 Inactive
             </Badge>
         );
@@ -275,9 +275,9 @@ export default function ValueObserversEdit({
         <AppLayout>
             <Head title={`Edit ${observer.name}`} />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -296,7 +296,7 @@ export default function ValueObserversEdit({
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h1 className="text-2xl font-bold text-gray-900">Edit Value Observer</h1>
+                                            <h1 className="text-2xl font-bold text-white">Edit Value Observer</h1>
                                             {getStatusBadge()}
                                         </div>
                                         <p className="text-sm text-gray-600">
@@ -364,7 +364,7 @@ export default function ValueObserversEdit({
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <Label>Database Connection</Label>
-                                            <div className="p-3 border rounded-lg bg-gray-50">
+                                            <div className="p-3 border rounded-lg bg-gray-50 dark:bg-black">
                                                 <div className="flex items-center gap-2">
                                                     <Database className="w-4 h-4 text-gray-400" />
                                                     <span className="font-medium">{selectedConnection?.name}</span>
@@ -377,7 +377,7 @@ export default function ValueObserversEdit({
 
                                         <div className="space-y-2">
                                             <Label>Table</Label>
-                                            <div className="p-3 border rounded-lg bg-gray-50">
+                                            <div className="p-3 border rounded-lg bg-gray-50 dark:bg-black">
                                                 <div className="flex items-center gap-2">
                                                     <Grid3x3 className="w-4 h-4 text-gray-400" />
                                                     <span className="font-medium">{selectedTable?.name}</span>

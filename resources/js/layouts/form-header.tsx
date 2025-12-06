@@ -45,7 +45,7 @@ export function FormHeader({
   action,
 }: FormHeaderProps) {
   return (
-    <div className="border-b bg-white">
+    <div className="border-b bg-white dark:bg-black">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -63,7 +63,7 @@ export function FormHeader({
                 <Grid3x3 className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+                <h1 className="text-xl font-bold text-white">{title}</h1>
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <span className="flex items-center">
                     <Database className="w-3 h-3 mr-1" />

@@ -172,9 +172,9 @@ export default function ProductCreate({
         <AppLayout>
             <Head title="Create" />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -192,7 +192,7 @@ export default function ProductCreate({
                                         <Plus className="w-6 h-6 text-green-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">Create</h1>
+                                        <h1 className="text-2xl font-bold text-white">Create</h1>
                                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                                             <span className="flex items-center">
                                                 <Database className="w-3 h-3 mr-1" />
@@ -269,7 +269,7 @@ export default function ProductCreate({
                                 {/*                 {connection.database} @ {connection.host}:{connection.port} */}
                                 {/*             </p> */}
                                 {/*         </div> */}
-                                {/*         <Badge variant="outline" className="bg-white"> */}
+                                {/*         <Badge variant="outline" className="bg-white dark:bg-black"> */}
                                 {/*             {table.table_name} */}
                                 {/*         </Badge> */}
                                 {/*     </div> */}
@@ -366,7 +366,7 @@ export default function ProductCreate({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-center py-8 border rounded-lg bg-gray-50">
+                                    <div className="text-center py-8 border rounded-lg bg-gray-50 dark:bg-black">
                                         <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                         <p className="text-gray-600">No editable fields configured for this table</p>
                                         <p className="text-sm text-gray-500 mt-1">

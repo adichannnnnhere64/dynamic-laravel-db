@@ -236,7 +236,7 @@ export default function ConnectionTables({ connection, actualTables }: any) {
                                             <TableCell>
                                                 <div className="flex flex-wrap gap-1">
                                                     {table.fields.map((field: string) => (
-                                                        <span key={field} className="px-2 py-1 bg-gray-100 rounded text-xs">
+                                                        <span key={field} className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs">
                                                             {field}
                                                         </span>
                                                     ))}

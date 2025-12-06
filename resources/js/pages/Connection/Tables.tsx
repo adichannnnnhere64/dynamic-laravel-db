@@ -583,9 +583,9 @@ const selectAllFields = () => {
 
     return (
         <AppLayout>
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -603,7 +603,7 @@ const selectAllFields = () => {
                                         <Database className="w-6 h-6 text-blue-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">Table Management</h1>
+                                        <h1 className="text-2xl font-bold text-white">Table Management</h1>
                                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                                             <span className="flex items-center">
                                                 <Globe className="w-3 h-3 mr-1" />
@@ -807,7 +807,7 @@ const selectAllFields = () => {
                                                     </div>
 
                                                     <div className="border rounded-lg overflow-hidden">
-                                                        <div className="bg-gray-50 px-4 py-3 border-b">
+                                                        <div className="bg-gray-50 dark:bg-black px-4 py-3 border-b">
                                                             <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-700">
                                                                 <div className="col-span-1 text-center">Show</div>
                                                                 <div className="col-span-3">Column</div>
@@ -827,7 +827,7 @@ const selectAllFields = () => {
                                                                     return (
                                                                         <div
                                                                             key={col}
-                                                                            className={`px-4 py-3 border-b hover:bg-gray-50 ${isPrimary ? 'bg-yellow-50' : ''}`}
+                                                                            className={`px-4 py-3 border-b hover:bg-gray-50 dark:bg-black ${isPrimary ? 'bg-yellow-50' : ''}`}
                                                                         >
                                                                             <div className="grid grid-cols-12 gap-4 items-center">
                                                                                 {/* Show/Hide */}
@@ -911,7 +911,7 @@ const selectAllFields = () => {
                                                     </div>
                                                 </div>
                                             ) : selectedTableName && !loadingColumns ? (
-                                                <div className="text-center py-8 border rounded-lg bg-gray-50">
+                                                <div className="text-center py-8 border rounded-lg bg-gray-50 dark:bg-black">
                                                     <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                                     <p className="text-gray-600">No columns found for table "{selectedTableName}"</p>
                                                 </div>
@@ -1031,7 +1031,7 @@ const selectAllFields = () => {
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell>
-                                                                <code className="px-2 py-1 bg-gray-100 rounded text-sm">
+                                                                <code className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-sm">
                                                                     {table.table_name}
                                                                 </code>
                                                             </TableCell>
@@ -1110,7 +1110,7 @@ const selectAllFields = () => {
                                         </div>
                                     ) : (
                                         <div className="text-center py-12">
-                                            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                            <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
                                                 <Database className="w-8 h-8 text-gray-400" />
                                             </div>
                                             <h3 className="text-lg font-semibold mb-2">No tables configured</h3>
@@ -1161,7 +1161,7 @@ const selectAllFields = () => {
                                                         <CardContent className="pt-6">
                                                             <div className="flex items-start justify-between">
                                                                 <div className="flex items-start gap-3">
-                                                                    <div className={`p-2 rounded ${isConfigured ? 'bg-green-100' : 'bg-gray-100'}`}>
+                                                                    <div className={`p-2 rounded ${isConfigured ? 'bg-green-100' : 'bg-gray-100 dark:bg-gray-800'}`}>
                                                                         <Grid3x3 className={`w-5 h-5 ${isConfigured ? 'text-green-600' : 'text-gray-600'}`} />
                                                                     </div>
                                                                     <div>

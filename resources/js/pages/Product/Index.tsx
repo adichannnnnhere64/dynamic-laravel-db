@@ -308,9 +308,9 @@ export default function Index({
         <AppLayout>
             <Head title={`${activeTable.name} - Products`} />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -328,7 +328,7 @@ export default function Index({
                                         <Grid3x3 className="w-6 h-6 text-blue-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">{activeTable.name}</h1>
+                                        <h1 className="text-2xl font-bold text-white">{activeTable.name}</h1>
                                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                                             <span className="flex items-center">
                                                 <Database className="w-3 h-3 mr-1" />
@@ -548,7 +548,7 @@ export default function Index({
                                     <TableBody>
                                         {products.data.length > 0 ? (
                                             products.data.map((product, index) => (
-                                                <TableRow key={index} className="hover:bg-gray-50 group">
+                                                <TableRow key={index} className="hover:bg-gray-50 dark:bg-black group">
                                                     <TableCell>
                                                         <input
                                                             type="checkbox"
@@ -679,7 +679,7 @@ export default function Index({
                                                 className={`px-3 py-1 rounded ${
                                                     link.active
                                                         ? 'bg-blue-600 text-white'
-                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 hover:bg-gray-200'
                                                 } ${!link.url ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                 disabled={!link.url}
                                                 dangerouslySetInnerHTML={{ __html: link.label }}

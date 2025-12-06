@@ -214,9 +214,9 @@ export default function ValueObserversCreate({
         <AppLayout>
             <Head title="Create Value Observer" />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -234,7 +234,7 @@ export default function ValueObserversCreate({
                                         <Bell className="w-6 h-6 text-purple-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">Create Value Observer</h1>
+                                        <h1 className="text-2xl font-bold text-white">Create Value Observer</h1>
                                         <p className="text-sm text-gray-600">
                                             Monitor database values and get alerts
                                         </p>

@@ -119,9 +119,9 @@ export default function ValueObserversShow({ observer }: Props) {
         <AppLayout>
             <Head title={observer.name} />
 
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen bg-gray-50 dark:bg-black">
                 {/* Header */}
-                <div className="border-b bg-white">
+                <div className="border-b bg-white dark:bg-black">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
@@ -139,7 +139,7 @@ export default function ValueObserversShow({ observer }: Props) {
                                         <Bell className="w-6 h-6 text-purple-600" />
                                     </div>
                                     <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">{observer.name}</h1>
+                                        <h1 className="text-2xl font-bold text-white">{observer.name}</h1>
                                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                                             <Badge variant={observer.is_active ? "default" : "secondary"}>
                                                 {observer.is_active ? 'Active' : 'Inactive'}
@@ -271,14 +271,14 @@ export default function ValueObserversShow({ observer }: Props) {
 
                                         <div>
                                             <h4 className="text-sm font-medium text-gray-500 mb-2">Email Subject</h4>
-                                            <p className="font-mono text-sm bg-gray-50 p-2 rounded">
+                                            <p className="font-mono text-sm bg-gray-50 dark:bg-black p-2 rounded">
                                                 {observer.notification_subject}
                                             </p>
                                         </div>
 
                                         <div>
                                             <h4 className="text-sm font-medium text-gray-500 mb-2">Email Message</h4>
-                                            <div className="font-mono text-sm bg-gray-50 p-3 rounded whitespace-pre-wrap">
+                                            <div className="font-mono text-sm bg-gray-50 dark:bg-black p-3 rounded whitespace-pre-wrap">
                                                 {observer.notification_message}
                                             </div>
                                         </div>
@@ -348,7 +348,7 @@ export default function ValueObserversShow({ observer }: Props) {
                                                     className={`p-3 rounded border ${
                                                         log.condition_met
                                                             ? 'bg-red-50 border-red-200'
-                                                            : 'bg-gray-50 border-gray-200'
+                                                            : 'bg-gray-50 dark:bg-black border-gray-200'
                                                     }`}
                                                 >
                                                     <div className="flex items-center justify-between">
