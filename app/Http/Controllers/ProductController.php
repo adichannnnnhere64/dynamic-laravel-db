@@ -7,6 +7,7 @@ use App\Models\ConnectionTable;
 use App\Services\DynamicDatabaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -67,13 +68,11 @@ class ProductController extends Controller
         $actualTables[] = $tableName;
     }
 } catch (\Exception $e) {
-    // Log the error for debugging
-    \Log::error('Database Connection Failed', [
-        'connection_id' => $connectionId,
-        'user_id' => auth()->id(),
-        'error' => $e->getMessage(),
-        'config' => $connection->connection_config // Be cautious with logging credentials
-    ]);
+
+        return Inertia::render('Connection/Tables', [
+            'connection' => $connection,
+            'actualTables' => $actualTables,
+            ]);
 
     // Return user-friendly error
     return back()->withErrors([
@@ -211,7 +210,18 @@ class ProductController extends Controller
         ]);
 
     } catch (\Exception $e) {
-        return back()->with('error', 'Failed to connect: ' . $e->getMessage());
+        return Inertia::render('Product/Index', [
+            'products' => [],
+            'connections' => $connections,
+            'activeConnection' => $connection,
+            'activeTable' => $activeTable, // Make sure this is passed
+            'fields' => $activeTable->fields,
+            'idField' => $activeTable->primary_key,
+            'editableFields' => $activeTable->editable_fields,
+            'inputTypes' => $activeTable->input_types ?? [],
+        ]);
+
+        /* return back()->with('error', 'Failed to connect: ' . $e->getMessage()); */
     }
 }
 
@@ -530,6 +540,103 @@ public function getTableColumns($connectionId, $tableName)
         ], 500);
     }
 }
+
+        public function testConnection(Request $request, $connectionId)
+    {
+        $validator = Validator::make($request->all(), [
+            'host' => 'required|string',
+            'port' => 'required|integer',
+            'database' => 'required|string',
+            'username' => 'required|string',
+            'password' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Test the connection with provided credentials
+            $config = [
+                'driver' => 'mysql',
+                'host' => $request->host,
+                'port' => $request->port,
+                'database' => $request->database,
+                'username' => $request->username,
+                'password' => $request->password,
+                'charset' => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'prefix' => '',
+                'strict' => true,
+                'engine' => null,
+            ];
+
+            // Create a temporary database connection
+            config(['database.connections.test_connection' => $config]);
+
+            DB::purge('test_connection');
+            DB::reconnect('test_connection');
+
+            // Test the connection
+            DB::connection('test_connection')->select('SELECT 1');
+
+            // Get database info
+            $version = DB::connection('test_connection')->select('SELECT VERSION() as version')[0]->version;
+            $tables = DB::connection('test_connection')->select('SHOW TABLES');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connection successful!',
+                'database' => $request->database,
+                'version' => $version,
+                'tablesCount' => count($tables),
+                'tables' => array_map(function($table) use ($request) {
+                    return $table->{'Tables_in_' . $request->database};
+                }, $tables),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage(),
+            ], 500);
+        } finally {
+            // Clean up temporary connection
+            DB::purge('test_connection');
+        }
+    }
+
+    /**
+     * Update database connection
+     */
+    public function updateConnection(Request $request, $connectionId)
+    {
+        $connection = auth()->user()->dbConnections()->findOrFail($connectionId);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'host' => 'required|string',
+            'port' => 'required|integer',
+            'database' => 'required|string',
+            'username' => 'required|string',
+            'password' => 'nullable|string',
+        ]);
+
+        // If password is empty, keep the current one
+        $updateData = $request->only(['name', 'host', 'port', 'database', 'username']);
+        if ($request->filled('password')) {
+            $updateData['password'] = $request->password;
+        }
+
+        $connection->update($updateData);
+
+        return redirect()->back()->with('success', 'Connection updated successfully');
+    }
+
 
 /**
  * Quick test connection

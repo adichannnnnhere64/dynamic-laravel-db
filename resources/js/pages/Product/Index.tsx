@@ -1320,7 +1320,7 @@ export default function Index({
                                             <span>{activeTable.table_name}</span>
                                             <span>•</span>
                                             <Badge variant="outline" className="text-xs">
-                                                {products.data.length} records
+                                                {products?.data?.length} records
                                             </Badge>
                                         </div>
                                     </div>
@@ -1581,7 +1581,7 @@ export default function Index({
                                             <TableHead className="w-12">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedRows.length === products.data.length && products.data.length > 0}
+                                                    checked={selectedRows.length === products?.data?.length && products?.data?.length > 0}
                                                     onChange={selectAllRows}
                                                     className="rounded"
                                                 />
@@ -1602,7 +1602,7 @@ export default function Index({
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {products.data.length > 0 ? (
+                                        {products?.data?.length > 0 ? (
                                             products.data.map((product, index) => (
                                                 <TableRow key={index} className="hover:bg-gray-50 dark:bg-black group">
                                                     <TableCell>

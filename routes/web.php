@@ -35,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
     // Product management
     Route::get('/product', [ProductController::class, 'index'])->name('product.index');
     Route::get('/product/create', [ProductController::class, 'create'])->name('product.create');
+    Route::put('/connect/{connection}', [App\Http\Controllers\ProductController::class, 'updateConnection'])->name('connection.update');
     Route::post('/product/store', [ProductController::class, 'store'])->name('product.store');
     Route::post('/product/search', [ProductController::class, 'findProduct'])->name('product.search');
     Route::get('/product/search', [ProductController::class, 'findProduct'])->name('product.search');
@@ -95,6 +96,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/connection/{connection}/tables/{table}/test', [ProductController::class, 'testTable']);
     Route::get('/connection/{connection}/tables/{table}/preview', [ProductController::class, 'tablePreview']);
     Route::get('/connection/{connection}/tables', [ProductController::class, 'getAllTables']);
+    Route::put('/connect/{connection}', [App\Http\Controllers\ProductController::class, 'updateConnection'])->name('connection.update');
+
+        Route::post('/connection/{connection}/test', [App\Http\Controllers\ProductController::class, 'testConnection'])->name('connection.test');
+Route::get('/connection/{connection}/test', [App\Http\Controllers\ProductController::class, 'quickTest'])->name('connection.test.get');
 });
 
 });

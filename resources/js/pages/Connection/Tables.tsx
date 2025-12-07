@@ -85,7 +85,14 @@ import {
     Columns,
     Globe,
     Shield,
-    Loader2
+    Loader2,
+    Server,
+    Wifi,
+    WifiOff,
+    Save,
+    TestTube,
+    Unplug,
+    Plug
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -111,6 +118,7 @@ type ConnectionType = {
     port: number;
     database: string;
     username: string;
+    password?: string;
     tables: TableConfig[];
     created_at: string;
     updated_at: string;
@@ -122,6 +130,7 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
     flash?: any;
 }) {
     const [showForm, setShowForm] = useState(false);
+    const [showEditConnection, setShowEditConnection] = useState(false);
     const [selectedTableName, setSelectedTableName] = useState<string>("");
     const [columns, setColumns] = useState<string[]>([]);
     const [columnTypes, setColumnTypes] = useState<Record<string, string>>({});
@@ -129,8 +138,21 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
     const [loadingColumns, setLoadingColumns] = useState(false);
     const [selectedTab, setSelectedTab] = useState("configured");
     const [searchQuery, setSearchQuery] = useState("");
+    const [isTestingConnection, setIsTestingConnection] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
 
-    const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
+    // Connection form data
+    const { data: connectionData, setData: setConnectionData, put: updateConnection, processing: isUpdatingConnection, errors: connectionErrors, reset: resetConnectionForm } = useForm({
+        name: connection.name,
+        host: connection.host,
+        port: connection.port,
+        database: connection.database,
+        username: connection.username,
+        password: '',
+    });
+
+    // Table configuration form data
+    const { data: tableData, setData: setTableData, post, processing, errors, reset, clearErrors } = useForm({
         table_name: "",
         name: "",
         primary_key: "",
@@ -149,61 +171,170 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
         if (flash?.error) {
             toast.error(flash.error);
         }
+
+        // Check connection status
+        checkConnectionStatus();
     }, [flash]);
+
+    // Check database connection status
+    const checkConnectionStatus = async () => {
+        try {
+            setConnectionStatus('checking');
+            const response = await fetch(`/api/connection/${connection.id}/test`);
+            const data = await response.json();
+
+            if (data.success) {
+                setConnectionStatus('connected');
+                toast.success("Database connected", {
+                    description: `Connected to ${connection.database}`,
+                });
+            } else {
+                setConnectionStatus('disconnected');
+            }
+        } catch (error) {
+            setConnectionStatus('disconnected');
+            console.error("Connection test failed:", error);
+        }
+    };
+
+    const {csrf} =  usePage().props;
+
+    // Test database connection
+    const testConnection = async () => {
+        setIsTestingConnection(true);
+        try {
+            const response = await fetch(`/api/connection/${connection.id}/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({
+                    ...connectionData,
+                    password: connectionData.password || undefined,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success("Connection Successful", {
+                    description: `Connected to ${data.database || connection.database}`,
+                });
+                setConnectionStatus('connected');
+            } else {
+                toast.error("Connection Failed", {
+                    description: data.message || "Could not connect to database",
+                });
+                setConnectionStatus('disconnected');
+            }
+        } catch (error: any) {
+            toast.error("Connection Error", {
+                description: error.message || "Network error",
+            });
+            setConnectionStatus('disconnected');
+        } finally {
+            setIsTestingConnection(false);
+        }
+    };
+
+    // Update connection
+    const handleUpdateConnection = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        router.put(`/connect/${connection.id}`, connectionData, {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success("Connection updated successfully");
+                setShowEditConnection(false);
+                resetConnectionForm();
+                checkConnectionStatus();
+            },
+            onError: (errors) => {
+                toast.error("Failed to update connection");
+            }
+        });
+    };
 
     // Fetch columns when table is selected
     useEffect(() => {
-        if (selectedTableName && selectedTableName !== editingTable?.table_name) {
+        // if (selectedTableName && selectedTableName !== editingTable?.table_name) {
+        if (selectedTableName) {
             fetchColumns(selectedTableName);
         }
     }, [selectedTableName]);
 
     const fetchColumns = async (tableName: string) => {
-    setLoadingColumns(true);
+        setLoadingColumns(true);
 
-    try {
-        const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
+        try {
+            const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        console.log('API Response for edit:', result);
-        console.log('Editing table input_types:', editingTable?.input_types);
-
-        if (result.error) {
-            throw new Error(result.error);
-        }
-
-        if (result.columns && Array.isArray(result.columns)) {
-            const columnNames: string[] = result.columns.filter((col: string) => col && col.trim() !== '');
-            const typesMap: Record<string, string> = {};
-
-            if (result.types && Array.isArray(result.types)) {
-                columnNames.forEach((col: string, index: number) => {
-                    typesMap[col] = result.types[index] || 'varchar';
-                });
-            } else {
-                columnNames.forEach((col: string) => {
-                    typesMap[col] = 'varchar';
-                });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            setColumns(columnNames);
-            setColumnTypes(typesMap);
+            const result = await response.json();
 
-            // CRITICAL FIX: Preserve existing input_types when editing
-            let finalInputTypes: Record<string, string> = {};
+            console.log('API Response for edit:', result);
+            console.log('Editing table input_types:', editingTable?.input_types);
 
-            if (editingTable?.input_types) {
-                // Start with the saved input_types
-                finalInputTypes = { ...editingTable.input_types };
+            if (result.error) {
+                throw new Error(result.error);
+            }
 
-                // Only add defaults for NEW fields that don't exist in saved config
-                columnNames.forEach(col => {
-                    if (!finalInputTypes[col]) {
+            if (result.columns && Array.isArray(result.columns)) {
+                const columnNames: string[] = result.columns.filter((col: string) => col && col.trim() !== '');
+                const typesMap: Record<string, string> = {};
+
+                if (result.types && Array.isArray(result.types)) {
+                    columnNames.forEach((col: string, index: number) => {
+                        typesMap[col] = result.types[index] || 'varchar';
+                    });
+                } else {
+                    columnNames.forEach((col: string) => {
+                        typesMap[col] = 'varchar';
+                    });
+                }
+
+                setColumns(columnNames);
+                setColumnTypes(typesMap);
+
+                // CRITICAL FIX: Preserve existing input_types when editing
+                let finalInputTypes: Record<string, string> = {};
+
+                if (editingTable?.input_types) {
+                    // Start with the saved input_types
+                    finalInputTypes = { ...editingTable.input_types };
+
+                    // Only add defaults for NEW fields that don't exist in saved config
+                    columnNames.forEach(col => {
+                        if (!finalInputTypes[col]) {
+                            const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
+                            let inputType = 'text';
+
+                            if (mysqlType.includes('int') || mysqlType.includes('decimal') || mysqlType.includes('float') || mysqlType.includes('double')) {
+                                inputType = 'number';
+                            } else if (mysqlType.includes('date')) {
+                                inputType = 'date';
+                            } else if (mysqlType.includes('datetime') || mysqlType.includes('timestamp')) {
+                                inputType = 'datetime-local';
+                            } else if (mysqlType.includes('time')) {
+                                inputType = 'time';
+                            } else if (mysqlType.includes('text') || mysqlType.includes('blob')) {
+                                inputType = 'textarea';
+                            } else if (mysqlType.includes('enum')) {
+                                inputType = 'select';
+                            } else if (mysqlType.includes('set') || mysqlType === 'tinyint(1)' || mysqlType.includes('boolean')) {
+                                inputType = 'checkbox';
+                            }
+
+                            finalInputTypes[col] = inputType;
+                        }
+                    });
+                } else {
+                    // Generate all defaults if not editing
+                    columnNames.forEach((col: string) => {
                         const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
                         let inputType = 'text';
 
@@ -224,253 +355,139 @@ export default function ConnectionTables({ connection, actualTables, flash }: {
                         }
 
                         finalInputTypes[col] = inputType;
-                    }
+                    });
+                }
+
+                const primaryKey = editingTable?.primary_key || columnNames[0] || 'id';
+
+                console.log('Final input types to set:', finalInputTypes);
+
+                setTableData({
+                    ...tableData,
+                    table_name: tableName,
+                    name: editingTable?.name || tableName,
+                    primary_key: editingTable?.primary_key || primaryKey,
+                    fields: editingTable?.fields || columnNames,
+                    editable_fields: editingTable?.editable_fields || columnNames.filter(f => f !== primaryKey),
+                    input_types: finalInputTypes,
                 });
             } else {
-                // Generate all defaults if not editing
-                columnNames.forEach((col: string) => {
-                    const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
-                    let inputType = 'text';
-
-                    if (mysqlType.includes('int') || mysqlType.includes('decimal') || mysqlType.includes('float') || mysqlType.includes('double')) {
-                        inputType = 'number';
-                    } else if (mysqlType.includes('date')) {
-                        inputType = 'date';
-                    } else if (mysqlType.includes('datetime') || mysqlType.includes('timestamp')) {
-                        inputType = 'datetime-local';
-                    } else if (mysqlType.includes('time')) {
-                        inputType = 'time';
-                    } else if (mysqlType.includes('text') || mysqlType.includes('blob')) {
-                        inputType = 'textarea';
-                    } else if (mysqlType.includes('enum')) {
-                        inputType = 'select';
-                    } else if (mysqlType.includes('set') || mysqlType === 'tinyint(1)' || mysqlType.includes('boolean')) {
-                        inputType = 'checkbox';
-                    }
-
-                    finalInputTypes[col] = inputType;
-                });
+                throw new Error('No columns found in response');
             }
-
-            const primaryKey = editingTable?.primary_key || columnNames[0] || 'id';
-
-            console.log('Final input types to set:', finalInputTypes);
-
-            setData({
-                ...data,
-                table_name: tableName,
-                name: editingTable?.name || tableName,
-                primary_key: editingTable?.primary_key || primaryKey,
-                fields: editingTable?.fields || columnNames,
-                editable_fields: editingTable?.editable_fields || columnNames.filter(f => f !== primaryKey),
-                input_types: finalInputTypes, // Use the preserved/merged input types
+        } catch (error: any) {
+            console.error("Failed to fetch columns:", error);
+            toast.error("Connection Error", {
+                description: "Could not fetch table structure from database",
             });
-        } else {
-            throw new Error('No columns found in response');
+        } finally {
+            setLoadingColumns(false);
         }
-    } catch (error: any) {
-        console.error("Failed to fetch columns:", error);
-        toast.error("Connection Error", {
-            description: "Could not fetch table structure from database",
-        });
-    } finally {
-        setLoadingColumns(false);
-    }
-};
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    clearErrors();
+        e.preventDefault();
+        clearErrors();
 
-    if (!data.table_name) {
-        toast.error("Please select a table from the database");
-        return;
-    }
+        if (!tableData.table_name) {
+            toast.error("Please select a table from the database");
+            return;
+        }
 
-    if (!data.name.trim()) {
-        toast.error("Display name is required");
-        return;
-    }
+        if (!tableData.name.trim()) {
+            toast.error("Display name is required");
+            return;
+        }
 
-    if (!data.primary_key) {
-        toast.error("Primary key is required");
-        return;
-    }
+        if (!tableData.primary_key) {
+            toast.error("Primary key is required");
+            return;
+        }
 
-    // Ensure primary key is always in fields
-    if (!data.fields.includes(data.primary_key)) {
-        setData("fields", [data.primary_key, ...data.fields.filter(f => f !== data.primary_key)]);
-    }
+        // Ensure primary key is always in fields
+        if (!tableData.fields.includes(tableData.primary_key)) {
+            setTableData("fields", [tableData.primary_key, ...tableData.fields.filter(f => f !== tableData.primary_key)]);
+        }
 
-    if (data.fields.length === 0) {
-        toast.error("At least one field must be selected");
-        return;
-    }
+        if (tableData.fields.length === 0) {
+            toast.error("At least one field must be selected");
+            return;
+        }
 
-    // Ensure input_types has entries for all fields
-    const updatedInputTypes = { ...data.input_types };
-    data.fields.forEach(field => {
-        if (!updatedInputTypes[field]) {
-            // Determine default input type based on column type
-            const columnType = columnTypes[field] || 'varchar';
-            let inputType = 'text';
+        // Ensure input_types has entries for all fields
+        const updatedInputTypes = { ...tableData.input_types };
+        tableData.fields.forEach(field => {
+            if (!updatedInputTypes[field]) {
+                // Determine default input type based on column type
+                const columnType = columnTypes[field] || 'varchar';
+                let inputType = 'text';
 
-            if (columnType.includes('int') || columnType.includes('decimal') || columnType.includes('float') || columnType.includes('double')) {
-                inputType = 'number';
-            } else if (columnType.includes('date')) {
-                inputType = 'date';
-            } else if (columnType.includes('datetime') || columnType.includes('timestamp')) {
-                inputType = 'datetime-local';
-            } else if (columnType.includes('time')) {
-                inputType = 'time';
-            } else if (columnType.includes('text') || columnType.includes('blob')) {
-                inputType = 'textarea';
-            } else if (columnType.includes('enum')) {
-                inputType = 'select';
-            } else if (columnType.includes('set') || columnType === 'tinyint(1)' || columnType.includes('boolean')) {
-                inputType = 'checkbox';
+                if (columnType.includes('int') || columnType.includes('decimal') || columnType.includes('float') || columnType.includes('double')) {
+                    inputType = 'number';
+                } else if (columnType.includes('date')) {
+                    inputType = 'date';
+                } else if (columnType.includes('datetime') || columnType.includes('timestamp')) {
+                    inputType = 'datetime-local';
+                } else if (columnType.includes('time')) {
+                    inputType = 'time';
+                } else if (columnType.includes('text') || columnType.includes('blob')) {
+                    inputType = 'textarea';
+                } else if (columnType.includes('enum')) {
+                    inputType = 'select';
+                } else if (columnType.includes('set') || columnType === 'tinyint(1)' || columnType.includes('boolean')) {
+                    inputType = 'checkbox';
+                }
+
+                updatedInputTypes[field] = inputType;
             }
+        });
 
-            updatedInputTypes[field] = inputType;
-        }
-    });
+        // Update data with complete input_types
+        setTableData("input_types", updatedInputTypes);
 
-    // Update data with complete input_types
-    setData("input_types", updatedInputTypes);
+        const url = `/connect/${connection.id}/tables`;
+        const method = editingTable ? 'put' : 'post';
 
-    const url = `/connect/${connection.id}/tables`;
-    const method = editingTable ? 'put' : 'post';
-
-    router[method](url, {
-        ...data,
-        input_types: updatedInputTypes, // Use the updated input_types
-        id: editingTable?.id,
-    }, {
-        preserveScroll: true,
-        onSuccess: () => {
-            reset();
-            setShowForm(false);
-            setSelectedTableName("");
-            setEditingTable(null);
-            setColumns([]);
-            setColumnTypes({});
-        },
-        onError: (errors) => {
-            console.error('Form errors:', errors);
-            toast.error("Please check your form for errors");
-        }
-    });
-};
+        router[method](url, {
+            ...tableData,
+            input_types: updatedInputTypes,
+            id: editingTable?.id,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                reset();
+                setShowForm(false);
+                setSelectedTableName("");
+                setEditingTable(null);
+                setColumns([]);
+                setColumnTypes({});
+            },
+            onError: (errors) => {
+                console.error('Form errors:', errors);
+                toast.error("Please check your form for errors");
+            }
+        });
+    };
 
     const editTable = async (table: TableConfig) => {
-    console.log('Editing table:', table);
-    console.log('Table input_types:', table.input_types);
+        console.log('Editing table:', table);
+        console.log('Table input_types:', table.input_types);
 
-    setEditingTable(table);
-    setShowForm(true);
-    setSelectedTableName(table.table_name);
+        setEditingTable(table);
+        setShowForm(true);
+        setSelectedTableName(table.table_name);
 
-    // Set initial data IMMEDIATELY with saved configuration
-    setData({
-        table_name: table.table_name,
-        name: table.name,
-        primary_key: table.primary_key,
-        fields: table.fields,
-        editable_fields: table.editable_fields || [],
-        input_types: table.input_types || {},
-        is_active: table.is_active,
-        order: table.order,
-    });
-
-    // Now fetch columns and merge with saved input_types
-    await fetchColumnsForEdit(table.table_name, table.input_types || {});
-};
-
-// New function specifically for editing
-const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<string, string>) => {
-    setLoadingColumns(true);
-
-    try {
-        const response = await fetch(`/api/connection/${connection.id}/tables/${tableName}/columns`);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-
-        console.log('API Response for edit:', result);
-        console.log('Saved input_types:', savedInputTypes);
-
-        if (result.error) {
-            throw new Error(result.error);
-        }
-
-        if (result.columns && Array.isArray(result.columns)) {
-            const columnNames: string[] = result.columns.filter((col: string) => col && col.trim() !== '');
-            const typesMap: Record<string, string> = {};
-
-            if (result.types && Array.isArray(result.types)) {
-                columnNames.forEach((col: string, index: number) => {
-                    typesMap[col] = result.types[index] || 'varchar';
-                });
-            } else {
-                columnNames.forEach((col: string) => {
-                    typesMap[col] = 'varchar';
-                });
-            }
-
-            setColumns(columnNames);
-            setColumnTypes(typesMap);
-
-            // Merge saved input_types with defaults for new columns
-            const finalInputTypes: Record<string, string> = { ...savedInputTypes };
-
-            // Add defaults for NEW fields that don't exist in saved config
-            columnNames.forEach(col => {
-                if (!finalInputTypes[col]) {
-                    const mysqlType = (typesMap[col] || 'varchar').toLowerCase();
-                    let inputType = 'text';
-
-                    if (mysqlType.includes('int') || mysqlType.includes('decimal') || mysqlType.includes('float') || mysqlType.includes('double')) {
-                        inputType = 'number';
-                    } else if (mysqlType.includes('date')) {
-                        inputType = 'date';
-                    } else if (mysqlType.includes('datetime') || mysqlType.includes('timestamp')) {
-                        inputType = 'datetime-local';
-                    } else if (mysqlType.includes('time')) {
-                        inputType = 'time';
-                    } else if (mysqlType.includes('text') || mysqlType.includes('blob')) {
-                        inputType = 'textarea';
-                    } else if (mysqlType.includes('enum')) {
-                        inputType = 'select';
-                    } else if (mysqlType.includes('set') || mysqlType === 'tinyint(1)' || mysqlType.includes('boolean')) {
-                        inputType = 'checkbox';
-                    }
-
-                    finalInputTypes[col] = inputType;
-                }
-            });
-
-            console.log('Final input types to set:', finalInputTypes);
-
-            // Update form data with merged input_types
-            setData(prev => ({
-                ...prev,
-                fields: columnNames,
-                input_types: finalInputTypes,
-            }));
-        }
-    } catch (error: any) {
-        console.error("Failed to fetch columns:", error);
-        toast.error("Connection Error", {
-            description: "Could not fetch table structure from database",
+        // Set initial data IMMEDIATELY with saved configuration
+        setTableData({
+            table_name: table.table_name,
+            name: table.name,
+            primary_key: table.primary_key,
+            fields: table.fields,
+            editable_fields: table.editable_fields || [],
+            input_types: table.input_types || {},
+            is_active: table.is_active,
+            order: table.order,
         });
-    } finally {
-        setLoadingColumns(false);
-    }
-};
-
+    };
 
     const deleteTable = (tableId: number) => {
         router.delete(`/connect/${connection.id}/tables/${tableId}`, {
@@ -485,64 +502,56 @@ const fetchColumnsForEdit = async (tableName: string, savedInputTypes: Record<st
     };
 
     const toggleEditable = (fieldName: string) => {
-        const newEditable = data.editable_fields.includes(fieldName)
-            ? data.editable_fields.filter(f => f !== fieldName)
-            : [...data.editable_fields, fieldName];
-        setData("editable_fields", newEditable);
+        const newEditable = tableData.editable_fields.includes(fieldName)
+            ? tableData.editable_fields.filter(f => f !== fieldName)
+            : [...tableData.editable_fields, fieldName];
+        setTableData("editable_fields", newEditable);
     };
 
     const setInputType = (fieldName: string, type: string) => {
-        setData("input_types", {
-            ...data.input_types,
+        setTableData("input_types", {
+            ...tableData.input_types,
             [fieldName]: type
         });
     };
 
     const deselectAllFields = () => {
-    // Keep the primary key field selected ALWAYS
-    const fieldsToKeep = [data.primary_key].filter(field =>
-        columns.includes(field) && field && field.trim() !== ''
-    );
+        const fieldsToKeep = [tableData.primary_key].filter(field =>
+            columns.includes(field) && field && field.trim() !== ''
+        );
 
-    setData("fields", fieldsToKeep);
-    setData("editable_fields", []);
+        setTableData("fields", fieldsToKeep);
+        setTableData("editable_fields", []);
 
-    // Keep only the primary key's input type
-    const newInputTypes: Record<string, string> = {};
-    if (data.primary_key) {
-        newInputTypes[data.primary_key] = data.input_types[data.primary_key] || 'text';
-    }
-    setData("input_types", newInputTypes);
-};
+        const newInputTypes: Record<string, string> = {};
+        if (tableData.primary_key) {
+            newInputTypes[tableData.primary_key] = tableData.input_types[tableData.primary_key] || 'text';
+        }
+        setTableData("input_types", newInputTypes);
+    };
 
-const toggleField = (fieldName: string) => {
-    // Prevent unselecting the primary key
-    // if (fieldName === data.primary_key) {
-    //     toast.error("Cannot unselect primary key field");
-    //     return;
-    // }
+    const toggleField = (fieldName: string) => {
+        const newFields = tableData.fields.includes(fieldName)
+            ? tableData.fields.filter(f => f !== fieldName)
+            : [...tableData.fields, fieldName];
+        setTableData("fields", newFields);
 
-    const newFields = data.fields.includes(fieldName)
-        ? data.fields.filter(f => f !== fieldName)
-        : [...data.fields, fieldName];
-    setData("fields", newFields);
+        if (!newFields.includes(fieldName)) {
+            const newEditable = tableData.editable_fields.filter(f => f !== fieldName);
+            setTableData("editable_fields", newEditable);
 
-    if (!newFields.includes(fieldName)) {
-        const newEditable = data.editable_fields.filter(f => f !== fieldName);
-        setData("editable_fields", newEditable);
+            const newInputTypes = { ...tableData.input_types };
+            delete newInputTypes[fieldName];
+            setTableData("input_types", newInputTypes);
+        }
+    };
 
-        const newInputTypes = { ...data.input_types };
-        delete newInputTypes[fieldName];
-        setData("input_types", newInputTypes);
-    }
-};
+    const selectAllFields = () => {
+        setTableData("fields", columns);
+        setTableData("editable_fields", columns.filter(f => f !== tableData.primary_key));
+    };
 
-const selectAllFields = () => {
-    setData("fields", columns);
-    setData("editable_fields", columns.filter(f => f !== data.primary_key));
-};
-
-      const getMysqlTypeIcon = (type: string) => {
+    const getMysqlTypeIcon = (type: string) => {
         const lowerType = type.toLowerCase();
         if (lowerType.includes('int') || lowerType.includes('decimal') || lowerType.includes('float')) {
             return <Hash className="w-4 h-4" />;
@@ -599,8 +608,17 @@ const selectAllFields = () => {
                                     Back
                                 </Button>
                                 <div className="flex items-center space-x-3">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                        <Database className="w-6 h-6 text-blue-600" />
+                                    <div className={`p-2 rounded-lg ${
+                                        connectionStatus === 'connected' ? 'bg-green-100' :
+                                        connectionStatus === 'disconnected' ? 'bg-red-100' : 'bg-yellow-100'
+                                    }`}>
+                                        {connectionStatus === 'connected' ? (
+                                            <Wifi className="w-6 h-6 text-green-600" />
+                                        ) : connectionStatus === 'disconnected' ? (
+                                            <WifiOff className="w-6 h-6 text-red-600" />
+                                        ) : (
+                                            <Loader2 className="w-6 h-6 text-yellow-600 animate-spin" />
+                                        )}
                                     </div>
                                     <div>
                                         <h1 className="text-2xl font-bold text-white">Table Management</h1>
@@ -613,6 +631,14 @@ const selectAllFields = () => {
                                             <span className="font-medium">{connection.database}</span>
                                             <span>•</span>
                                             <span>{connection.name}</span>
+                                            <span>•</span>
+                                            <Badge variant={
+                                                connectionStatus === 'connected' ? 'default' :
+                                                connectionStatus === 'disconnected' ? 'destructive' : 'outline'
+                                            } className="text-xs">
+                                                {connectionStatus === 'connected' ? 'Connected' :
+                                                 connectionStatus === 'disconnected' ? 'Disconnected' : 'Checking...'}
+                                            </Badge>
                                         </div>
                                     </div>
                                 </div>
@@ -621,18 +647,30 @@ const selectAllFields = () => {
                             <div className="flex items-center space-x-3">
                                 <Button
                                     variant="outline"
-                                    onClick={() => router.reload({ preserveScroll: true })}
+                                    onClick={checkConnectionStatus}
                                     className="gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" />
-                                    Refresh
+                                    Check Connection
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowEditConnection(true)}
+                                    className="gap-2"
+                                >
+                                    <Server className="w-4 h-4" />
+                                    Edit Connection
                                 </Button>
 
                                 <Dialog open={showForm} onOpenChange={setShowForm}>
                                     <DialogTrigger asChild>
-
+                                        <Button>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Table
+                                        </Button>
                                     </DialogTrigger>
-                                    <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                                    <DialogContent className="w-full min-w-6xl max-h-[90vh] overflow-y-auto">
                                         <DialogHeader>
                                             <DialogTitle className="flex items-center gap-2">
                                                 <Settings className="w-5 h-5" />
@@ -708,8 +746,8 @@ const selectAllFields = () => {
                                                         <Label htmlFor="name">Display Name *</Label>
                                                         <Input
                                                             id="name"
-                                                            value={data.name}
-                                                            onChange={e => setData("name", e.target.value)}
+                                                            value={tableData.name}
+                                                            onChange={e => setTableData("name", e.target.value)}
                                                             placeholder="e.g., Products Inventory"
                                                             className={errors.name ? 'border-red-500' : ''}
                                                             required
@@ -725,8 +763,8 @@ const selectAllFields = () => {
                                                             Primary Key *
                                                         </Label>
                                                         <Select
-                                                            value={data.primary_key}
-                                                            onValueChange={value => setData("primary_key", value)}
+                                                            value={tableData.primary_key}
+                                                            onValueChange={value => setTableData("primary_key", value)}
                                                             disabled={loadingColumns || columns.length === 0}
                                                         >
                                                             <SelectTrigger className={`${errors.primary_key ? 'border-red-500' : ''}`}>
@@ -757,8 +795,8 @@ const selectAllFields = () => {
                                                         <Input
                                                             id="order"
                                                             type="number"
-                                                            value={data.order}
-                                                            onChange={e => setData("order", parseInt(e.target.value) || 0)}
+                                                            value={tableData.order}
+                                                            onChange={e => setTableData("order", parseInt(e.target.value) || 0)}
                                                             placeholder="0"
                                                         />
                                                     </div>
@@ -822,7 +860,7 @@ const selectAllFields = () => {
                                                                 .filter(col => col && col.trim() !== '')
                                                                 .map((col: string) => {
                                                                     const columnType = columnTypes[col] || 'varchar';
-                                                                    const isPrimary = col === data.primary_key;
+                                                                    const isPrimary = col === tableData.primary_key;
 
                                                                     return (
                                                                         <div
@@ -833,7 +871,7 @@ const selectAllFields = () => {
                                                                                 {/* Show/Hide */}
                                                                                 <div className="col-span-1 text-center">
                                                                                     <Switch
-                                                                                        checked={data.fields.includes(col)}
+                                                                                        checked={tableData.fields.includes(col)}
                                                                                         onCheckedChange={() => toggleField(col)}
                                                                                     />
                                                                                 </div>
@@ -852,7 +890,7 @@ const selectAllFields = () => {
                                                                                             </Badge>
                                                                                         )}
                                                                                     </div>
-                                                                                </div>
+                                                                </div>
 
                                                                                 {/* Type */}
                                                                                 <div className="col-span-2">
@@ -864,18 +902,18 @@ const selectAllFields = () => {
                                                                                 {/* Editable */}
                                                                                 <div className="col-span-2 text-center">
                                                                                     <Switch
-                                                                                        checked={data.editable_fields.includes(col)}
+                                                                                        checked={tableData.editable_fields.includes(col)}
                                                                                         onCheckedChange={() => toggleEditable(col)}
-                                                                                        disabled={!data.fields.includes(col) }
+                                                                                        disabled={!tableData.fields.includes(col)}
                                                                                     />
                                                                                 </div>
 
                                                                                 {/* Input Type */}
                                                                                 <div className="col-span-3">
                                                                                     <Select
-                                                                                        value={data.input_types[col] || 'text'}
+                                                                                        value={tableData.input_types[col] || 'text'}
                                                                                         onValueChange={value => setInputType(col, value)}
-                                                                                        disabled={!data.editable_fields.includes(col)}
+                                                                                        disabled={!tableData.editable_fields.includes(col)}
                                                                                     >
                                                                                         <SelectTrigger className="w-full">
                                                                                             <SelectValue />
@@ -965,6 +1003,180 @@ const selectAllFields = () => {
 
                 {/* Main Content */}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Database Connection Alert */}
+                    {connectionStatus === 'disconnected' && (
+                        <div className="mb-6">
+                            <Card className="border-red-200 bg-red-50">
+                                <CardContent className="pt-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <AlertCircle className="w-5 h-5 text-red-600" />
+                                            <div>
+                                                <h3 className="font-semibold text-red-800">Database Connection Error</h3>
+                                                <p className="text-sm text-red-700">
+                                                    Cannot connect to {connection.database} at {connection.host}:{connection.port}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            variant="destructive"
+                                            onClick={() => setShowEditConnection(true)}
+                                            className="gap-2"
+                                        >
+                                            <Unplug className="w-4 h-4" />
+                                            Fix Connection
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* Edit Connection Dialog */}
+                    <Dialog open={showEditConnection} onOpenChange={setShowEditConnection}>
+                        <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Server className="w-5 h-5" />
+                                    Edit Database Connection
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Update your database connection settings
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <form onSubmit={handleUpdateConnection} className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Connection Name *</Label>
+                                        <Input
+                                            id="name"
+                                            value={connectionData.name}
+                                            onChange={e => setConnectionData("name", e.target.value)}
+                                            placeholder="My Inventory Database"
+                                            className={connectionErrors.name ? 'border-red-500' : ''}
+                                        />
+                                        {connectionErrors.name && (
+                                            <p className="text-red-500 text-sm">{connectionErrors.name}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="host">Host *</Label>
+                                        <Input
+                                            id="host"
+                                            value={connectionData.host}
+                                            onChange={e => setConnectionData("host", e.target.value)}
+                                            placeholder="127.0.0.1"
+                                            className={connectionErrors.host ? 'border-red-500' : ''}
+                                        />
+                                        {connectionErrors.host && (
+                                            <p className="text-red-500 text-sm">{connectionErrors.host}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="port">Port *</Label>
+                                        <Input
+                                            id="port"
+                                            type="number"
+                                            value={connectionData.port}
+                                            onChange={e => setConnectionData("port", parseInt(e.target.value) || 3306)}
+                                            className={connectionErrors.port ? 'border-red-500' : ''}
+                                        />
+                                        {connectionErrors.port && (
+                                            <p className="text-red-500 text-sm">{connectionErrors.port}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="database">Database Name *</Label>
+                                        <Input
+                                            id="database"
+                                            value={connectionData.database}
+                                            onChange={e => setConnectionData("database", e.target.value)}
+                                            className={connectionErrors.database ? 'border-red-500' : ''}
+                                        />
+                                        {connectionErrors.database && (
+                                            <p className="text-red-500 text-sm">{connectionErrors.database}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="username">Username *</Label>
+                                        <Input
+                                            id="username"
+                                            value={connectionData.username}
+                                            onChange={e => setConnectionData("username", e.target.value)}
+                                            className={connectionErrors.username ? 'border-red-500' : ''}
+                                        />
+                                        {connectionErrors.username && (
+                                            <p className="text-red-500 text-sm">{connectionErrors.username}</p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="password">Password (leave blank to keep current)</Label>
+                                        <Input
+                                            id="password"
+                                            type="password"
+                                            value={connectionData.password}
+                                            onChange={e => setConnectionData("password", e.target.value)}
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-4 border-t">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={testConnection}
+                                        disabled={isTestingConnection}
+                                        className="gap-2"
+                                    >
+                                        {isTestingConnection ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <TestTube className="w-4 h-4" />
+                                        )}
+                                        Test Connection
+                                    </Button>
+
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowEditConnection(false);
+                                                resetConnectionForm();
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={isUpdatingConnection}
+                                            className="gap-2"
+                                        >
+                                            {isUpdatingConnection ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Updating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4" />
+                                                    Update Connection
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+
                     <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="configured" className="gap-2">
@@ -1114,6 +1326,7 @@ const selectAllFields = () => {
                                                 <Database className="w-8 h-8 text-gray-400" />
                                             </div>
                                             <h3 className="text-lg font-semibold mb-2">No tables configured</h3>
+                                            <p className="text-gray-600 mb-4">Add your first table to start managing data</p>
                                             <Button onClick={() => setShowForm(true)} className="gap-2">
                                                 <Plus className="w-4 h-4" />
                                                 Add Your First Table
