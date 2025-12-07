@@ -182,63 +182,151 @@ export default function ValueObserversCreate({
         setData('telegram_chat_ids', newIds);
     };
 
-    const conditionTypes = [
-        { value: 'less_than', label: 'Less than', description: 'Value is less than threshold' },
-        { value: 'greater_than', label: 'Greater than', description: 'Value is greater than threshold' },
-        { value: 'equals', label: 'Equals', description: 'Value equals threshold' },
-        { value: 'not_equals', label: 'Not equals', description: 'Value does not equal threshold' },
-        { value: 'contains', label: 'Contains', description: 'Value contains text' },
-        { value: 'starts_with', label: 'Starts with', description: 'Value starts with text' },
-        { value: 'ends_with', label: 'Ends with', description: 'Value ends with text' },
-    ];
 
-    const getConditionInput = () => {
-        switch (data.condition_type) {
-            case 'less_than':
-            case 'greater_than':
-                return (
+
+const conditionTypes = [
+    { value: 'less_than', label: 'Less than', description: 'Value is less than threshold' },
+    { value: 'greater_than', label: 'Greater than', description: 'Value is greater than threshold' },
+    { value: 'equals', label: 'Equals', description: 'Value equals threshold' },
+    { value: 'not_equals', label: 'Not equals', description: 'Value does not equal threshold' },
+    { value: 'contains', label: 'Contains', description: 'Value contains text' },
+    { value: 'starts_with', label: 'Starts with', description: 'Value starts with text' },
+    { value: 'ends_with', label: 'Ends with', description: 'Value ends with text' },
+    { value: 'date_near_expiry', label: 'Near expiration date', description: 'Alert when date is nearing expiry' },
+    { value: 'date_expired', label: 'Expired', description: 'Alert when date is expired' },
+    { value: 'date_future', label: 'Future date', description: 'Alert when date is in future' },
+    { value: 'date_past', label: 'Past date', description: 'Alert when date is in past' },
+];
+
+const dateFieldTypes = [
+    { value: 'date', label: 'Date (YYYY-MM-DD)' },
+    { value: 'datetime', label: 'Date & Time' },
+    { value: 'timestamp', label: 'Timestamp' },
+];
+
+const getConditionInput = () => {
+    switch (data.condition_type) {
+        case 'less_than':
+        case 'greater_than':
+            return (
+                <div className="space-y-2">
+                    <Label htmlFor="threshold_value">Threshold Value</Label>
+                    <Input
+                        id="threshold_value"
+                        type="number"
+                        step="any"
+                        value={data.threshold_value || ''}
+                        onChange={e => setData('threshold_value', e.target.value || null)}
+                        placeholder="Enter threshold value"
+                    />
+                    {errors.threshold_value && (
+                        <p className="text-sm text-red-600">{errors.threshold_value}</p>
+                    )}
+                </div>
+            );
+
+        case 'equals':
+        case 'not_equals':
+        case 'contains':
+        case 'starts_with':
+        case 'ends_with':
+            return (
+                <div className="space-y-2">
+                    <Label htmlFor="string_value">Text Value</Label>
+                    <Input
+                        id="string_value"
+                        value={data.string_value || ''}
+                        onChange={e => setData('string_value', e.target.value || null)}
+                        placeholder="Enter text to compare"
+                    />
+                    {errors.string_value && (
+                        <p className="text-sm text-red-600">{errors.string_value}</p>
+                    )}
+                </div>
+            );
+
+        case 'date_near_expiry':
+        case 'date_expired':
+        case 'date_future':
+        case 'date_past':
+            return (
+                <div className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="threshold_value">Threshold Value</Label>
-                        <Input
-                            id="threshold_value"
-                            type="number"
-                            step="any"
-                            value={data.threshold_value}
-                            onChange={e => setData('threshold_value', e.target.value)}
-                            placeholder="Enter threshold value"
-                            required
-                        />
-                        {errors.threshold_value && (
-                            <p className="text-sm text-red-600">{errors.threshold_value}</p>
+                        <Label htmlFor="date_field_type">Date Field Type</Label>
+                        <Select
+                            value={data.date_field_type || ''}
+                            onValueChange={value => setData('date_field_type', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select date type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {dateFieldTypes.map(type => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                        {type.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.date_field_type && (
+                            <p className="text-sm text-red-600">{errors.date_field_type}</p>
                         )}
                     </div>
-                );
 
-            case 'equals':
-            case 'not_equals':
-            case 'contains':
-            case 'starts_with':
-            case 'ends_with':
-                return (
+                    {data.condition_type === 'date_near_expiry' && (
+                        <div className="space-y-2">
+                            <Label htmlFor="days_before_alert">Alert Before Days</Label>
+                            <Input
+                                id="days_before_alert"
+                                type="number"
+                                min="1"
+                                max="365"
+                                value={data.days_before_alert || ''}
+                                onChange={e => setData('days_before_alert', e.target.value)}
+                                placeholder="e.g., 7 (alert 7 days before expiry)"
+                            />
+                            <p className="text-xs text-gray-500">
+                                Send alert when date is within this many days
+                            </p>
+                            {errors.days_before_alert && (
+                                <p className="text-sm text-red-600">{errors.days_before_alert}</p>
+                            )}
+                        </div>
+                    )}
+
+                    {data.condition_type === 'date_expired' && (
+                        <div className="flex items-center space-x-2">
+                            <Switch
+                                checked={data.alert_on_expired || false}
+                                onCheckedChange={checked => setData('alert_on_expired', checked)}
+                            />
+                            <Label htmlFor="alert_on_expired">Alert on expired dates</Label>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
-                        <Label htmlFor="string_value">Text Value</Label>
+                        <Label htmlFor="date_format">Date Format (Optional)</Label>
                         <Input
-                            id="string_value"
-                            value={data.string_value}
-                            onChange={e => setData('string_value', e.target.value)}
-                            placeholder="Enter text to compare"
-                            required
+                            id="date_format"
+                            value={data.date_format || ''}
+                            onChange={e => setData('date_format', e.target.value)}
+                            placeholder="e.g., Y-m-d, Y-m-d H:i:s"
                         />
-                        {errors.string_value && (
-                            <p className="text-sm text-red-600">{errors.string_value}</p>
+                        <p className="text-xs text-gray-500">
+                            Leave empty for auto-detection. Common formats: Y-m-d, Y-m-d H:i:s, d/m/Y
+                        </p>
+                        {errors.date_format && (
+                            <p className="text-sm text-red-600">{errors.date_format}</p>
                         )}
                     </div>
-                );
+                </div>
+            );
 
-            default:
-                return null;
-        }
-    };
+        default:
+            return null;
+    }
+};
+
 
     return (
         <AppLayout>
