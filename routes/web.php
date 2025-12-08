@@ -75,13 +75,16 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/api/tables/{tableId}/fields', [ValueObserverController::class, 'getTableFields']);
 
         // Observer logs (optional - for viewing logs separately)
-        Route::get('/{observer}/logs', function (App\Models\ValueObserver $observer) {
-            $logs = $observer->logs()->orderBy('created_at', 'desc')->paginate(50);
-            return Inertia::render('ValueObservers/Logs', [
-                'observer' => $observer,
-                'logs' => $logs,
-            ]);
-        })->name('logs');
+        /* Route::get('/{observer}/logs', function (App\Models\ValueObserver $observer) { */
+        /*     $logs = $observer->logs()->orderBy('created_at', 'desc')->paginate(50); */
+        /*     return Inertia::render('ValueObservers/Logs', [ */
+        /*         'observer' => $observer, */
+        /*         'logs' => $logs, */
+        /*     ]); */
+        /* })->name('logs'); */
+
+        Route::get('/{observer}/logs', [ValueObserverController::class, 'logs'])->name('logs');
+
     });
 
 

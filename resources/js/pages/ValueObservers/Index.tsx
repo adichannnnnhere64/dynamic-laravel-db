@@ -94,26 +94,51 @@ export default function ValueObserversIndex({ observers, connections, filters }:
     };
 
     const getConditionBadge = (observer: Observer) => {
-        const conditions = {
-            less_than: { label: 'Less than', color: 'bg-red-100 text-red-800' },
-            greater_than: { label: 'Greater than', color: 'bg-green-100 text-green-800' },
-            equals: { label: 'Equals', color: 'bg-blue-100 text-blue-800' },
-            not_equals: { label: 'Not equals', color: 'bg-yellow-100 text-yellow-800' },
-            contains: { label: 'Contains', color: 'bg-purple-100 text-purple-800' },
-            starts_with: { label: 'Starts with', color: 'bg-pink-100 text-pink-800' },
-            ends_with: { label: 'Ends with', color: 'bg-indigo-100 text-indigo-800' },
-        };
-
-        const condition = conditions[observer.condition_type] || { label: observer.condition_type, color: 'bg-gray-100 dark:bg-gray-800 text-gray-800' };
-
-        return (
-            <Badge className={condition.color}>
-                {condition.label}
-                {observer.threshold_value !== null && ` ${observer.threshold_value}`}
-                {observer.string_value && ` "${observer.string_value}"`}
-            </Badge>
-        );
+    // Define all condition types
+    const conditionConfigs = {
+        less_than: { label: 'Less than', color: 'bg-red-100 text-red-800' },
+        greater_than: { label: 'Greater than', color: 'bg-green-100 text-green-800' },
+        equals: { label: 'Equals', color: 'bg-blue-100 text-blue-800' },
+        not_equals: { label: 'Not equals', color: 'bg-yellow-100 text-yellow-800' },
+        contains: { label: 'Contains', color: 'bg-purple-100 text-purple-800' },
+        starts_with: { label: 'Starts with', color: 'bg-pink-100 text-pink-800' },
+        ends_with: { label: 'Ends with', color: 'bg-indigo-100 text-indigo-800' },
+        date_near_expiry: { label: 'Expires within', color: 'bg-orange-100 text-orange-800' },
+        date_expired: { label: 'Expired', color: 'bg-rose-100 text-rose-800' },
+        date_future: { label: 'Future date', color: 'bg-emerald-100 text-emerald-800' },
+        date_past: { label: 'Past date', color: 'bg-amber-100 text-amber-800' },
     };
+
+    const config = conditionConfigs[observer.condition_type] || {
+        label: observer.condition_type || 'Unknown',
+        color: 'bg-gray-100 dark:text-white dark:bg-gray-800 text-gray-800'
+    };
+
+    // Build badge text based on condition type
+    let badgeText = config.label;
+
+    if (observer.condition_type === 'date_near_expiry' && observer.days_before_alert) {
+        badgeText += ` ${observer.days_before_alert} days`;
+    } else if (observer.condition_type === 'date_expired') {
+        badgeText += observer.alert_on_expired ? ' (alert)' : ' (no alert)';
+    } else if (observer.threshold_value !== null) {
+        badgeText += ` ${observer.threshold_value}`;
+    } else if (observer.string_value) {
+        badgeText += ` "${observer.string_value}"`;
+    }
+
+    // Add date field type indicator
+    if (observer.condition_type?.includes('date_') && observer.date_field_type) {
+        badgeText += ` • ${observer.date_field_type}`;
+    }
+
+    return (
+        <Badge className={config.color}>
+            {badgeText}
+        </Badge>
+    );
+};
+
 
     const formatTimeAgo = (dateString: string | null) => {
         if (!dateString) return 'Never';
@@ -252,7 +277,7 @@ export default function ValueObserversIndex({ observers, connections, filters }:
                                         </TableHeader>
                                         <TableBody>
                                             {observers.data.map(observer => (
-                                                <TableRow key={observer.id} className="hover:bg-gray-50 dark:bg-black">
+                                                <TableRow key={observer.id} className="hover:bg-gray-50 dark:bg-black dark:text-white">
                                                     <TableCell>
                                                         <Badge variant={observer.is_active ? "default" : "secondary"}>
                                                             {observer.is_active ? 'Active' : 'Inactive'}

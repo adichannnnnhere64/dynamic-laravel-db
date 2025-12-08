@@ -46,6 +46,7 @@ import {
 import {
     AlertCircle,
     Bell,
+    Calendar,
     ChevronLeft,
     Database,
     Grid3x3,
@@ -89,6 +90,11 @@ export default function ValueObserversEdit({
         condition_type: observer.condition_type || 'less_than',
         threshold_value: observer.threshold_value || '',
         string_value: observer.string_value || '',
+        date_field_type: observer.date_field_type || '',
+        days_before_alert: observer.days_before_alert || '',
+        days_after_alert: observer.days_after_alert || '',
+        alert_on_expired: observer.alert_on_expired || false,
+        date_format: observer.date_format || '',
         is_active: observer.is_active ?? true,
         notification_emails: observer.notification_emails || [''],
         telegram_chat_ids: observer.telegram_chat_ids || [''],
@@ -152,6 +158,14 @@ export default function ValueObserversEdit({
             return;
         }
 
+        // Validate date conditions
+        if (isDateCondition(data.condition_type) && !data.date_field_type) {
+            toast.error('Configuration Error', {
+                description: 'Please select a date field type for date conditions'
+            });
+            return;
+        }
+
         // Prepare cleaned data
         const formData = {
             ...data,
@@ -160,6 +174,9 @@ export default function ValueObserversEdit({
             telegram_bot_token: data.telegram_bot_token.trim() || null,
             threshold_value: data.threshold_value || null,
             string_value: data.string_value || null,
+            days_before_alert: data.days_before_alert || null,
+            days_after_alert: data.days_after_alert || null,
+            date_format: data.date_format || null,
         };
 
         put(`/value-observers/${observer.id}`, formData, {
@@ -269,7 +286,21 @@ export default function ValueObserversEdit({
         { value: 'contains', label: 'Contains', description: 'Value contains text' },
         { value: 'starts_with', label: 'Starts with', description: 'Value starts with text' },
         { value: 'ends_with', label: 'Ends with', description: 'Value ends with text' },
+        { value: 'date_near_expiry', label: 'Near expiration date', description: 'Alert when date is nearing expiry' },
+        { value: 'date_expired', label: 'Expired', description: 'Alert when date is expired' },
+        { value: 'date_future', label: 'Future date', description: 'Alert when date is in future' },
+        { value: 'date_past', label: 'Past date', description: 'Alert when date is in past' },
     ];
+
+    const dateFieldTypes = [
+        { value: 'date', label: 'Date (YYYY-MM-DD)' },
+        { value: 'datetime', label: 'Date & Time' },
+        { value: 'timestamp', label: 'Timestamp' },
+    ];
+
+    const isDateCondition = (conditionType: string) => {
+        return conditionType?.includes('date_');
+    };
 
     const getConditionInput = () => {
         switch (data.condition_type) {
@@ -312,6 +343,122 @@ export default function ValueObserversEdit({
                     </div>
                 );
 
+            case 'date_near_expiry':
+            case 'date_expired':
+            case 'date_future':
+            case 'date_past':
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="date_field_type">Date Field Type *</Label>
+                            <Select
+                                value={data.date_field_type || ''}
+                                onValueChange={value => setData('date_field_type', value)}
+                                required={isDateCondition(data.condition_type)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select date type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {dateFieldTypes.map(type => (
+                                        <SelectItem key={type.value} value={type.value}>
+                                            {type.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-gray-500">
+                                Type of date field in your database
+                            </p>
+                            {errors.date_field_type && (
+                                <p className="text-sm text-red-600">{errors.date_field_type}</p>
+                            )}
+                        </div>
+
+                        {data.condition_type === 'date_near_expiry' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="days_before_alert">Alert Before Days</Label>
+                                <Input
+                                    id="days_before_alert"
+                                    type="number"
+                                    min="1"
+                                    max="365"
+                                    value={data.days_before_alert || ''}
+                                    onChange={e => setData('days_before_alert', e.target.value)}
+                                    placeholder="e.g., 7 (alert 7 days before expiry)"
+                                />
+                                <p className="text-xs text-gray-500">
+                                    Send alert when date is within this many days of expiry
+                                </p>
+                                {errors.days_before_alert && (
+                                    <p className="text-sm text-red-600">{errors.days_before_alert}</p>
+                                )}
+                            </div>
+                        )}
+
+                        {data.condition_type === 'date_expired' && (
+                            <div className="space-y-2">
+                                <Label>Alert Options</Label>
+                                <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                                    <Switch
+                                        id="alert_on_expired"
+                                        checked={data.alert_on_expired || false}
+                                        onCheckedChange={checked => setData('alert_on_expired', checked)}
+                                    />
+                                    <div className="flex-1">
+                                        <Label htmlFor="alert_on_expired" className="font-medium">
+                                            Alert on expired dates
+                                        </Label>
+                                        <p className="text-xs text-gray-500">
+                                            When disabled, alerts when date is NOT expired
+                                        </p>
+                                    </div>
+                                </div>
+                                {errors.alert_on_expired && (
+                                    <p className="text-sm text-red-600">{errors.alert_on_expired}</p>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="date_format">Date Format (Optional)</Label>
+                            <Input
+                                id="date_format"
+                                value={data.date_format || ''}
+                                onChange={e => setData('date_format', e.target.value)}
+                                placeholder="e.g., Y-m-d, Y-m-d H:i:s, d/m/Y"
+                            />
+                            <p className="text-xs text-gray-500">
+                                Leave empty for auto-detection. Common formats: Y-m-d, Y-m-d H:i:s, d/m/Y, m/d/Y
+                            </p>
+                            {errors.date_format && (
+                                <p className="text-sm text-red-600">{errors.date_format}</p>
+                            )}
+                        </div>
+
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 p-4">
+                            <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 mb-2">
+                                <Calendar className="w-4 h-4" />
+                                <span className="font-medium">Date Alert Preview</span>
+                            </div>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                                {data.condition_type === 'date_near_expiry' && (
+                                    `Will alert when date is within ${data.days_before_alert || 7} days of expiry`
+                                )}
+                                {data.condition_type === 'date_expired' && (
+                                    `Will alert when date is ${data.alert_on_expired ? 'expired' : 'not expired'}`
+                                )}
+                                {data.condition_type === 'date_future' && (
+                                    'Will alert when date is in the future'
+                                )}
+                                {data.condition_type === 'date_past' && (
+                                    'Will alert when date is in the past'
+                                )}
+                            </p>
+                        </div>
+                    </div>
+                );
+
             default:
                 return null;
         }
@@ -339,10 +486,11 @@ export default function ValueObserversEdit({
         return new Date(observer.last_checked_at).toLocaleString();
     };
 
-    // Helper function to check if Telegram notifications are configured
     const hasTelegramNotifications = () => {
         return observer.telegram_bot_token && observer.telegram_chat_ids?.length > 0;
     };
+
+    const isDateConditionActive = isDateCondition(data.condition_type);
 
     return (
         <AppLayout>
@@ -548,7 +696,7 @@ export default function ValueObserversEdit({
                                                 onValueChange={value => setData('condition_type', value)}
                                             >
                                                 <SelectTrigger>
-                                                    <SelectValue />
+                                                    <SelectValue placeholder="Select condition type" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {conditionTypes.map(condition => (
@@ -571,6 +719,18 @@ export default function ValueObserversEdit({
                                             {getConditionInput()}
                                         </div>
                                     </div>
+
+                                    {isDateConditionActive && (
+                                        <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 p-4">
+                                            <div className="flex items-center gap-2 text-green-800 dark:text-green-300">
+                                                <Calendar className="w-5 h-5" />
+                                                <p className="font-medium">Date Monitoring Active</p>
+                                            </div>
+                                            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                                                This observer will monitor date values. Make sure your database field contains valid date values.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <Separator />
@@ -740,6 +900,14 @@ export default function ValueObserversEdit({
                                                         <p>📊 <strong>Table:</strong> {selectedTable?.name || 'Table Name'}</p>
                                                         <p>🎯 <strong>Field:</strong> {data.field_to_watch || 'field_name'}</p>
                                                         <p>📝 <strong>Condition:</strong> {data.condition_type?.replace('_', ' ')} {data.threshold_value || data.string_value}</p>
+                                                        {isDateConditionActive && (
+                                                            <>
+                                                                <p>📅 <strong>Date Type:</strong> {data.date_field_type || 'Not specified'}</p>
+                                                                {data.days_before_alert && (
+                                                                    <p>⏳ <strong>Alert Before:</strong> {data.days_before_alert} days</p>
+                                                                )}
+                                                            </>
+                                                        )}
                                                         <p>📈 <strong>Current Value:</strong> [value]</p>
                                                     </div>
                                                 </CardContent>
@@ -920,6 +1088,32 @@ export default function ValueObserversEdit({
                                             <span>Condition:</span>
                                             <span>{observer.condition_type?.replace('_', ' ')}</span>
                                         </div>
+                                        {observer.date_field_type && (
+                                            <>
+                                                <div className="flex justify-between">
+                                                    <span>Date Field Type:</span>
+                                                    <span>{observer.date_field_type}</span>
+                                                </div>
+                                                {observer.days_before_alert && (
+                                                    <div className="flex justify-between">
+                                                        <span>Alert Before Days:</span>
+                                                        <span>{observer.days_before_alert}</span>
+                                                    </div>
+                                                )}
+                                                {observer.alert_on_expired !== null && (
+                                                    <div className="flex justify-between">
+                                                        <span>Alert on Expired:</span>
+                                                        <span>{observer.alert_on_expired ? 'Yes' : 'No'}</span>
+                                                    </div>
+                                                )}
+                                                {observer.date_format && (
+                                                    <div className="flex justify-between">
+                                                        <span>Date Format:</span>
+                                                        <span>{observer.date_format}</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                         <div className="flex justify-between">
                                             <span>Check Interval:</span>
                                             <span>Every {observer.check_interval_minutes} minutes</span>

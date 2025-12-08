@@ -43,6 +43,11 @@ interface Observer {
     condition_type: string;
     threshold_value: number | null;
     string_value: string | null;
+    date_field_type: string | null;
+    days_before_alert: number | null;
+    days_after_alert: number | null;
+    alert_on_expired: boolean | null;
+    date_format: string | null;
     is_active: boolean;
     notification_emails: string[];
     notification_subject: string;
@@ -53,6 +58,8 @@ interface Observer {
     trigger_count: number;
     created_at: string;
     updated_at: string;
+    telegram_bot_token: string | null;
+    telegram_chat_ids: string[] | null;
     connection_table: {
         id: number;
         name: string;
@@ -70,6 +77,7 @@ interface Observer {
         record_id: string;
         current_value: number | null;
         current_string_value: string | null;
+        current_date_value: string | null;
         condition_met: boolean;
         details: string;
         notification_sent_to: string[] | null;
@@ -97,6 +105,10 @@ export default function ValueObserversShow({ observer }: Props) {
             contains: 'Contains',
             starts_with: 'Starts with',
             ends_with: 'Ends with',
+            date_near_expiry: 'Near expiration date',
+            date_expired: 'Expired',
+            date_future: 'Future date',
+            date_past: 'Past date',
         };
 
         const condition = conditions[observer.condition_type] || observer.condition_type;
@@ -105,6 +117,13 @@ export default function ValueObserversShow({ observer }: Props) {
             return `${condition} ${observer.threshold_value}`;
         } else if (observer.string_value) {
             return `${condition} "${observer.string_value}"`;
+        }
+
+        // Date conditions
+        if (observer.condition_type === 'date_near_expiry' && observer.days_before_alert) {
+            return `Expires within ${observer.days_before_alert} days`;
+        } else if (observer.condition_type === 'date_expired') {
+            return `Date ${observer.alert_on_expired ? 'expired' : 'not expired'}`;
         }
 
         return condition;
@@ -117,7 +136,51 @@ export default function ValueObserversShow({ observer }: Props) {
     };
 
     const hasTelegramNotifications = observer.telegram_bot_token && observer.telegram_chat_ids?.length > 0;
-const hasEmailNotifications = observer.notification_emails?.length > 0;
+    const hasEmailNotifications = observer.notification_emails?.length > 0;
+    const isDateCondition = observer.condition_type?.includes('date_');
+
+    const getDateConditionDetails = () => {
+        if (!isDateCondition) return null;
+
+        return (
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Date Monitoring Details
+                </h4>
+                <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                        <span className="text-gray-600">Date Field Type:</span>
+                        <span className="font-medium">{observer.date_field_type || 'Not specified'}</span>
+                    </div>
+                    {observer.days_before_alert && (
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Alert Before Days:</span>
+                            <span className="font-medium">{observer.days_before_alert} days</span>
+                        </div>
+                    )}
+                    {observer.days_after_alert && (
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Alert After Days:</span>
+                            <span className="font-medium">{observer.days_after_alert} days</span>
+                        </div>
+                    )}
+                    {observer.alert_on_expired !== null && (
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Alert on Expired:</span>
+                            <span className="font-medium">{observer.alert_on_expired ? 'Yes' : 'No'}</span>
+                        </div>
+                    )}
+                    {observer.date_format && (
+                        <div className="flex justify-between">
+                            <span className="text-gray-600">Date Format:</span>
+                            <span className="font-mono">{observer.date_format}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     return (
         <AppLayout>
@@ -152,6 +215,15 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                             <span>Triggers: {observer.trigger_count}</span>
                                             <span>•</span>
                                             <span>Last check: {formatTime(observer.last_checked_at)}</span>
+                                            {isDateCondition && (
+                                                <>
+                                                    <span>•</span>
+                                                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                                                        <Calendar className="w-3 h-3 mr-1" />
+                                                        Date Monitor
+                                                    </Badge>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -248,6 +320,9 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Date Condition Details */}
+                                    {getDateConditionDetails()}
                                 </CardContent>
                             </Card>
 
@@ -262,7 +337,7 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                 <CardContent>
                                     <div className="space-y-6">
                                         <div>
-                                            <h4 className="text-sm font-medium text-gray-500 mb-2">Recipients</h4>
+                                            <h4 className="text-sm font-medium text-gray-500 mb-2">Email Recipients</h4>
                                             <div className="space-y-1">
                                                 {observer.notification_emails.map((email, index) => (
                                                     <div key={index} className="flex items-center gap-2">
@@ -272,8 +347,6 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                                 ))}
                                             </div>
                                         </div>
-
-
 
                                         <div>
                                             <h4 className="text-sm font-medium text-gray-500 mb-2">Email Subject</h4>
@@ -290,35 +363,31 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                         </div>
                                     </div>
 
-                        {/* Add this section after the Email notification section */}
-{observer?.telegram_bot_token && observer?.telegram_chat_ids?.length > 0 && (
-    <div className="mt-4 pt-4 border-t">
-
-        <h4 className="text-sm font-medium text-gray-500 mb-2">Telegram Notifications</h4>
-        <div className="space-y-2">
-            <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-green-600" />
-                <span className="text-sm">Bot token configured</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Chat IDs:</span>
-                <div className="flex flex-wrap gap-1">
-                    {observer?.telegram_chat_ids.map((chatId, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                            {chatId}
-                        </Badge>
-                    ))}
-                </div>
-            </div>
-        </div>
-    </div>
-)}
-
-
+                                    {/* Telegram Notifications */}
+                                    {observer.telegram_bot_token && observer.telegram_chat_ids?.length > 0 && (
+                                        <div className="mt-6 pt-6 border-t">
+                                            <h4 className="text-sm font-medium text-gray-500 mb-2">Telegram Notifications</h4>
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <MessageSquare className="w-4 h-4 text-green-600" />
+                                                    <span className="text-sm">Bot token configured</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-gray-600">Chat IDs:</span>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {observer.telegram_chat_ids.map((chatId, index) => (
+                                                            <Badge key={index} variant="outline" className="text-xs">
+                                                                {chatId}
+                                                            </Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
-
 
                         {/* Right Column - Stats & Actions */}
                         <div className="space-y-6">
@@ -336,10 +405,6 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                             <div className="text-sm text-gray-600">Total Triggers</div>
                                         </div>
 
-                                        <Card>
-
-</Card>
-
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="text-center">
                                                 <div className="text-xl font-bold">
@@ -351,7 +416,7 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                                 <div className="text-xl font-bold">
                                                     {observer.logs.filter(log => log.notification_sent_to).length}
                                                 </div>
-                                                <div className="text-sm text-gray-600">Emails Sent</div>
+                                                <div className="text-sm text-gray-600">Notifications Sent</div>
                                             </div>
                                         </div>
 
@@ -364,6 +429,14 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                                 <div className="flex justify-between mt-1">
                                                     <span className="text-gray-600">Last Updated</span>
                                                     <span>{new Date(observer.updated_at).toLocaleDateString()}</span>
+                                                </div>
+                                                <div className="flex justify-between mt-1">
+                                                    <span className="text-gray-600">Date Monitoring</span>
+                                                    <span>{isDateCondition ? 'Active' : 'Inactive'}</span>
+                                                </div>
+                                                <div className="flex justify-between mt-1">
+                                                    <span className="text-gray-600">Telegram</span>
+                                                    <span>{hasTelegramNotifications ? 'Enabled' : 'Disabled'}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -407,7 +480,20 @@ const hasEmailNotifications = observer.notification_emails?.length > 0;
                                                         </span>
                                                     </div>
                                                     <div className="mt-2 text-sm">
-                                                        Value: {log.current_value || log.current_string_value || 'N/A'}
+                                                        {isDateCondition && log.current_date_value ? (
+                                                            <div>
+                                                                <div>Date: {new Date(log.current_date_value).toLocaleString()}</div>
+                                                                {observer.condition_type === 'date_near_expiry' && log.condition_met && (
+                                                                    <div className="text-xs text-red-600 mt-1">
+                                                                        ⚠️ Near expiry
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div>
+                                                                Value: {log.current_value || log.current_string_value || 'N/A'}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}

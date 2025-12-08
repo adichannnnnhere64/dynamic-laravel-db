@@ -106,6 +106,15 @@ class ValueObserver extends Model
         return $condition;
     }
 
+    public function getThresholdValueAttribute($value)
+    {
+        if ($value != null) {
+            return round($value);
+        }
+    }
+
+
+
     public function isDateCondition(): bool
     {
         return in_array($this->condition_type, [

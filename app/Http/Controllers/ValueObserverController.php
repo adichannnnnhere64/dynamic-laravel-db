@@ -279,4 +279,23 @@ class ValueObserverController extends Controller
             'fields' => $table->fields,
         ]);
     }
+
+    public function logs(ValueObserver $observer)
+{
+    $logs = $observer->logs()->orderBy('created_at', 'desc')->paginate(50);
+
+    // Load the necessary relationship
+    $observer->load(['connectionTable.connection']);
+
+    // Convert to array with helper properties
+    $observerArray = $observer->toArray();
+    $observerArray['has_telegram_notifications'] = $observer->hasTelegramNotifications();
+    $observerArray['has_email_notifications'] = $observer->hasEmailNotifications();
+    $observerArray['has_any_notifications'] = $observer->hasAnyNotifications();
+
+    return Inertia::render('ValueObservers/Logs', [
+        'observer' => $observerArray,
+        'logs' => $logs,
+    ]);
+}
 }
