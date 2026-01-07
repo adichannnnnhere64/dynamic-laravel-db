@@ -231,7 +231,7 @@ class ValueObserverService
     /**
      * Check if date is near expiry
      */
-    private function checkDateNearExpiry($dateValue, ValueObserver $observer): bool
+    private function checkDateNearExpiry($dateValue, ?ValueObserver $observer): bool
     {
         try {
             $date = $this->parseDate($dateValue, $observer);
