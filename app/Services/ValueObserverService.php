@@ -260,7 +260,7 @@ class ValueObserverService
     /**
      * Check if date is expired
      */
-    private function checkDateExpired($dateValue, ValueObserver $observer): bool
+    private function checkDateExpired($dateValue, ?ValueObserver $observer): bool
     {
         try {
             $date = $this->parseDate($dateValue, $observer);
@@ -286,7 +286,7 @@ class ValueObserverService
     /**
      * Check if date is in future
      */
-    private function checkDateFuture($dateValue, ValueObserver $observer): bool
+    private function checkDateFuture($dateValue, ?ValueObserver $observer): bool
     {
         try {
             $date = $this->parseDate($dateValue, $observer);
@@ -305,7 +305,7 @@ class ValueObserverService
     /**
      * Check if date is in past
      */
-    private function checkDatePast($dateValue, ValueObserver $observer): bool
+    private function checkDatePast($dateValue, ?ValueObserver $observer): bool
     {
         try {
             $date = $this->parseDate($dateValue, $observer);
@@ -324,7 +324,7 @@ class ValueObserverService
     /**
      * Parse date value
      */
-    private function parseDate($dateValue, ValueObserver $observer): ?Carbon
+    private function parseDate($dateValue, ?ValueObserver $observer): ?Carbon
 {
     if (empty($dateValue)) {
         return null;
@@ -426,7 +426,7 @@ class ValueObserverService
     /**
      * Parse date value for logging
      */
-    private function parseDateValue($dateValue, ValueObserver $observer): ?string
+    private function parseDateValue($dateValue, ?ValueObserver $observer): ?string
     {
         $date = $this->parseDate($dateValue, $observer);
 
@@ -440,7 +440,7 @@ class ValueObserverService
     /**
      * Get condition details for logging
      */
-    private function getConditionDetails($value, ValueObserver $observer): string
+    private function getConditionDetails($value, ?ValueObserver $observer): string
     {
         $details = "Field: {$observer->field_to_watch}, ";
         $details .= "Condition: {$observer->getConditionDescription()}, ";
@@ -512,7 +512,7 @@ class ValueObserverService
         return $message;
     }
 
-    public function testObserver(ValueObserver $observer): array
+    public function testObserver(?ValueObserver $observer): array
     {
         $connectionTable = $observer->connectionTable;
         $connection = $connectionTable->connection;
@@ -547,7 +547,7 @@ class ValueObserverService
         return $results;
     }
 
-    public function testNotification(ValueObserver $observer): array
+    public function testNotification(?ValueObserver $observer): array
     {
         $connectionTable = $observer->connectionTable;
         $connection = $connectionTable->connection;
