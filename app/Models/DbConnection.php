@@ -1,5 +1,5 @@
 <?php
-// app/Models/DbConnection.php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,8 +7,11 @@ use Illuminate\Support\Facades\Crypt;
 
 class DbConnection extends Model
 {
+    protected $table = 'db_connections';
+
     protected $fillable = [
         'user_id',
+        'name',
         'host',
         'port',
         'database',
@@ -16,23 +19,41 @@ class DbConnection extends Model
         'password',
     ];
 
-    protected $hidden = []; // don’t leak in API
+    protected $hidden = ['password'];
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Encrypt password when saving
+    public function tables()
+    {
+        return $this->hasMany(ConnectionTable::class)->orderBy('order')->orderBy('name');
+    }
+
+    public function activeTables()
+    {
+        return $this->tables()->where('is_active', true);
+    }
+
     public function setPasswordAttribute($value)
     {
-        $this->attributes['password'] = Crypt::encryptString($value);
+        $this->attributes['password'] = $value ? Crypt::encryptString($value) : null;
     }
 
-    // Decrypt password when reading
     public function getPasswordAttribute($value)
     {
-        return Crypt::decryptString($value);
+        return $value ? Crypt::decryptString($value) : null;
+    }
+
+    public function getConnectionConfigAttribute()
+    {
+        return [
+            'host' => $this->host,
+            'port' => $this->port,
+            'database' => $this->database,
+            'username' => $this->username,
+            'password' => $this->password,
+        ];
     }
 }
-

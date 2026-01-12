@@ -47,8 +47,9 @@ class User extends Authenticatable
         ];
     }
 
-    public function dbConnection()
+    public function dbConnections()
     {
-        return $this->hasOne(DbConnection::class);
+        return $this->hasMany(DbConnection::class);
     }
+
 }

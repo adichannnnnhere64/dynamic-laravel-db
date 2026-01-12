@@ -38,6 +38,11 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
+
+        $connections = auth()->user()?->dbConnections()->with('tables', 'tables.connection')->get();
+
+        $tables = $connections?->map->tables->flatten();
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -45,6 +50,16 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'flash' => [
+                'success' => $request->session()->flash('success'),
+                'error' => $request->session()->flash('error'),
+                'warning' => $request->session()->flash('warning'),
+                'info' => $request->session()->flash('info'),
+            ],
+            'csrf' => csrf_token(),
+            'errors' => $request->session()->get('errors')?->getBag('default')->getMessages(),
+            'db_connections' => $connections,
+            'tables' => $tables,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
