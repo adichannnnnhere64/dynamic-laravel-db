@@ -34,7 +34,7 @@ class ValueObserverService
                     $this->checkObserver($observer);
                 }
             } catch (\Exception $e) {
-                Log::error("Failed to check observer {$observer->id}: " . $e->getMessage());
+                continue;
             }
         }
     }
@@ -58,14 +58,14 @@ class ValueObserverService
 
         $dbConn = $this->dbService->connect($connection->connection_config);
 
-        // Get all records from the table
         $records = $dbConn->table($connectionTable->table_name)
-            ->select([$connectionTable->primary_key, $observer->field_to_watch])
+            /* ->select([$connectionTable->primary_key, $observer->field_to_watch]) */
             ->get();
 
         $conditionMetCount = 0;
 
         foreach ($records as $record) {
+            \Log::info(json_encode($record));
             $currentValue = $record->{$observer->field_to_watch};
             $recordId = $record->{$connectionTable->primary_key};
 
@@ -77,6 +77,10 @@ class ValueObserverService
                 $observer->string_value,
                 $observer // Pass observer for date conditions
             );
+
+
+            \Log::info('is met');
+            \Log::info($conditionMet);
 
             // Log the check
             $log = ValueObserverLog::create([
